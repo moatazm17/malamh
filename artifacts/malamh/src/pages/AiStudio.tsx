@@ -134,14 +134,14 @@ export default function AiStudio() {
   const startPolling = (token: string) => {
     pollRef.current = setInterval(async () => {
       try {
-        const res = await apiFetch(`/api/consent/status/${token}`);
+        const res = await apiFetch(`/consent/status/${token}`);
         if (!res.ok) return;
         const data = await res.json();
-        if (data.approved === true) {
+        if (data.status === "approved") {
           if (pollRef.current) clearInterval(pollRef.current);
           setStatus("open");
           setTimeout(() => fakeGenerate(), 400);
-        } else if (data.approved === false) {
+        } else if (data.status === "denied" || data.status === "expired") {
           if (pollRef.current) clearInterval(pollRef.current);
           setStatus("denied");
         }

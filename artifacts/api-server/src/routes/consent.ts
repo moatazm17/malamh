@@ -49,7 +49,7 @@ router.post("/consent/decision", requireSession, async (req, res) => {
   const approved = parsed.data.decision === "approve";
 
   await db.update(consentTokensTable)
-    .set({ approved })
+    .set({ approved, used: true })
     .where(eq(consentTokensTable.id, consentToken.id));
 
   // Fire webhook for consent decision
@@ -74,21 +74,19 @@ router.get("/consent/status/:token", async (req, res) => {
   }
 
   if (consentToken.used) {
-    res.json({ status: "approved" });
+    res.json({
+      status: consentToken.approved ? "approved" : "denied",
+      approved: consentToken.approved,
+    });
     return;
   }
 
   if (new Date() > consentToken.expiresAt) {
-    res.json({ status: "expired" });
+    res.json({ status: "expired", approved: false });
     return;
   }
 
-  if (consentToken.approved) {
-    res.json({ status: "approved" });
-    return;
-  }
-
-  res.json({ status: "pending" });
+  res.json({ status: "pending", approved: null });
 });
 
 router.get("/consent/approve/:token", async (req, res) => {

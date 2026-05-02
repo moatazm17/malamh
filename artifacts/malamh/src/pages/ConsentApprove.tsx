@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "wouter";
-import { CheckCircle, XCircle, Loader2, AlertTriangle } from "lucide-react";
+import { CheckCircle, XCircle, Loader2, AlertTriangle, ArrowRight } from "lucide-react";
 import { useAuth } from "@clerk/react";
 import { useConsentDecision } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
@@ -75,27 +75,9 @@ export default function ConsentApprove() {
 
   if (done) {
     const ok = done === "approve";
-    return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center px-4 text-center anim-fade-up" style={{ background: "var(--bg-primary)" }}>
-        <div
-          className="w-20 h-20 rounded-full flex items-center justify-center mb-6"
-          style={{
-            background: ok ? "var(--accent-green-glow)" : "var(--accent-red-glow)",
-            border: `1px solid ${ok ? "var(--accent-green)" : "var(--accent-red)"}`,
-            boxShadow: `0 0 60px ${ok ? "rgba(0,212,138,0.3)" : "rgba(255,77,94,0.3)"}`,
-          }}
-        >
-          {ok ? <CheckCircle className="w-10 h-10" style={{ color: "var(--accent-green)" }} /> : <XCircle className="w-10 h-10" style={{ color: "var(--accent-red)" }} />}
-        </div>
-        <h1 className="headline-section text-3xl mb-2">{ok ? "Consent Approved" : "Request Rejected"}</h1>
-        <p className="text-base max-w-sm" style={{ color: "var(--text-secondary)" }}>
-          {ok
-            ? "You've approved this one-time generation request. You can close this page."
-            : "You've rejected this generation request. The requester has been notified."}
-        </p>
-        <p className="mt-6 text-xs" style={{ color: "var(--text-muted)" }}>{new Date().toLocaleString()}</p>
-      </div>
-    );
+    const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+    const openedFromTab = typeof window !== "undefined" && !!window.opener;
+    return <DoneScreen ok={ok} basePath={basePath} openedFromTab={openedFromTab} />;
   }
 
   return (
@@ -144,6 +126,68 @@ export default function ConsentApprove() {
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function DoneScreen({ ok, basePath, openedFromTab }: { ok: boolean; basePath: string; openedFromTab: boolean }) {
+  const [countdown, setCountdown] = useState(5);
+
+  useEffect(() => {
+    if (countdown <= 0) {
+      if (openedFromTab) {
+        window.close();
+      } else {
+        window.location.href = `${basePath}/dashboard/overview`;
+      }
+      return;
+    }
+    const t = setTimeout(() => setCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [countdown, openedFromTab, basePath]);
+
+  return (
+    <div className="min-h-[100dvh] flex flex-col items-center justify-center px-4 text-center anim-fade-up" style={{ background: "var(--bg-primary)" }}>
+      <div
+        className="w-20 h-20 rounded-full flex items-center justify-center mb-6"
+        style={{
+          background: ok ? "var(--accent-green-glow)" : "var(--accent-red-glow)",
+          border: `1px solid ${ok ? "var(--accent-green)" : "var(--accent-red)"}`,
+          boxShadow: `0 0 60px ${ok ? "rgba(0,212,138,0.3)" : "rgba(255,77,94,0.3)"}`,
+        }}
+      >
+        {ok ? <CheckCircle className="w-10 h-10" style={{ color: "var(--accent-green)" }} /> : <XCircle className="w-10 h-10" style={{ color: "var(--accent-red)" }} />}
+      </div>
+      <h1 className="headline-section text-3xl mb-2">{ok ? "Consent Approved" : "Request Rejected"}</h1>
+      <p className="text-base max-w-sm" style={{ color: "var(--text-secondary)" }}>
+        {ok
+          ? "You've approved this one-time generation request. The requester's tab will continue automatically."
+          : "You've denied this request. The requester has been notified and the token has been revoked."}
+      </p>
+
+      <div className="flex flex-col sm:flex-row gap-3 mt-8">
+        {openedFromTab ? (
+          <button
+            onClick={() => window.close()}
+            className="btn-mh btn-mh-primary justify-center"
+            style={{ padding: "12px 22px" }}
+          >
+            Close this tab
+          </button>
+        ) : (
+          <a
+            href={`${basePath}/dashboard/overview`}
+            className="btn-mh btn-mh-primary justify-center"
+            style={{ padding: "12px 22px" }}
+          >
+            Back to dashboard <ArrowRight className="w-4 h-4" />
+          </a>
+        )}
+      </div>
+
+      <p className="mt-6 text-xs" style={{ color: "var(--text-muted)" }}>
+        {openedFromTab ? `Auto-closing in ${countdown}s` : `Redirecting in ${countdown}s`} · {new Date().toLocaleString()}
+      </p>
     </div>
   );
 }
