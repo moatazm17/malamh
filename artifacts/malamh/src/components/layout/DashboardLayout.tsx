@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useGetMe, useLogout } from "@workspace/api-client-react";
 import {
   LayoutGrid, Camera, Activity as ActivityIcon, Key, Play, Settings as SettingsIcon,
-  LogOut, Loader2, Webhook, Radar,
+  LogOut, Loader2, Webhook, Radar, Megaphone,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { MalamhMark } from "./PublicLayout";
@@ -15,6 +15,7 @@ const navItems = [
   { href: "/dashboard/monitor", label: "Monitor", icon: Radar },
   { href: "/dashboard/activity", label: "Activity Log", icon: ActivityIcon },
   { href: "/dashboard/webhooks", label: "Webhooks", icon: Webhook },
+  { href: "/dashboard/share", label: "Share", icon: Megaphone },
   { href: "/dashboard/settings", label: "Settings", icon: SettingsIcon },
 ];
 

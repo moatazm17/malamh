@@ -223,7 +223,9 @@ export default function RegisterFace() {
       }
       const face = await res.json();
       setDoneId(face.id);
-      setStep("done");
+      // Redirect to share page — the success moment IS the share moment
+      setLocation(`/dashboard/share?new=${face.id}`);
+      return;
     } catch (err: any) {
       toast({ title: "Network error", description: err.message, variant: "destructive" });
     } finally { setEncoding(false); }

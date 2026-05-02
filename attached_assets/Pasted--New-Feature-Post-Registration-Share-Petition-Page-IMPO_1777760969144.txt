@@ -1,0 +1,169 @@
+# New Feature: Post-Registration Share & Petition Page
+
+## IMPORTANT: Follow the EXACT same design system already used in the app — same colors, fonts, animations, glassmorphism cards, and dark cinematic aesthetic. This page should feel like a natural part of the existing experience.
+
+---
+
+## What to Build
+
+After a user successfully registers their face (completes Step 3 of the registration wizard), instead of just showing a success message, redirect them to a new dedicated page: `/dashboard/share`
+
+This page has ONE purpose: get the user to share a powerful public statement on social media about protecting their face. Think of it as "Sign the Petition" — every share is a public declaration AND free marketing for Malamh.
+
+---
+
+## Page Design: `/dashboard/share`
+
+### Layout
+Full-screen centered layout, NO sidebar. This is a focused moment — remove all distractions. bg-void background with subtle gradient mesh (blue/green tones — the "hope" palette, same as landing page sections 5+).
+
+### Flow (top to bottom, all centered, max-width 600px)
+
+**1. Success Celebration (top)**
+
+Animated checkmark inside a glowing circle (accent-green, pulse animation):
+- Circle draws itself (SVG stroke animation, 0.5s)
+- Checkmark draws inside (0.3s delay)
+- Soft green glow radiates outward (box-shadow pulse)
+
+Title (Cabinet Grotesk 800, 2rem, text-primary):
+"Your face is now protected."
+
+Subtitle (Satoshi 400, 1rem, text-secondary):
+"You're one of [X] people who took control of their face."
+— [X] pulls the actual count from the database, same as the landing page counter.
+
+---
+
+**2. The Petition Statement (middle)**
+
+A glass card (same glassmorphism as the rest of the app) containing the shareable message. This card should feel important — like a document being signed.
+
+Card styling:
+- Slightly larger than normal cards
+- Accent-blue left border (4px solid var(--accent-blue))
+- Inner padding generous (32px)
+- Subtle blue glow: box-shadow: 0 0 40px var(--accent-blue-glow)
+
+Inside the card — the pre-written message (Satoshi 500, 1.05rem, text-primary, line-height 1.7):
+
+"My face. My rules. ✋
+
+I just registered on @MalamhApp — the first facial consent registry.
+
+AI companies now need MY permission before generating my likeness. No more unauthorized deepfakes. No more training on my photos without consent.
+
+15.4 billion images were used to train AI. Zero people were asked.
+
+It's time to change that. Protect your face too → https://malamh.app
+
+#MyFaceMyRules #Malamh"
+
+Below the message text, a small "Edit" link (text-muted, underline on hover) — clicking it makes the text editable so the user can personalize it if they want. But the default should be strong enough that most people just share as-is.
+
+---
+
+**3. Share Buttons (below the card)**
+
+A row of share buttons, each styled as glass cards (small, icon + platform name):
+
+**Twitter/X button** (primary — largest, accent-blue bg, glow):
+- X logo icon + "Share on X"
+- onClick: opens Twitter intent URL with the pre-filled message:
+  `https://twitter.com/intent/tweet?text=[encoded message]`
+
+**Facebook button** (glass card, ghost style):
+- Facebook icon + "Share on Facebook"
+- onClick: `https://www.facebook.com/sharer/sharer.php?u=https://malamh.app&quote=[encoded message]`
+
+**LinkedIn button** (glass card, ghost style):
+- LinkedIn icon + "Share on LinkedIn"  
+- onClick: `https://www.linkedin.com/sharing/share-offsite/?url=https://malamh.app`
+
+**Copy button** (glass card, ghost style):
+- Copy icon + "Copy Text"
+- onClick: copies the message to clipboard
+- After click: icon changes to checkmark, text changes to "Copied!" (accent-green), reverts after 2s
+
+**WhatsApp button** (glass card, ghost style):
+- WhatsApp icon + "WhatsApp"
+- onClick: `https://wa.me/?text=[encoded message]`
+
+Button row: flex-wrap, centered, gap 12px. On mobile: 2 columns grid.
+
+---
+
+**4. Social Proof Counter (below share buttons)**
+
+Small text (Satoshi 400, 0.9rem, text-muted, centered):
+"[Y] people have shared their declaration"
+— Track share button clicks in the database (just increment a counter, no need for detailed tracking).
+
+Optional: if count > 100, show a subtle animated bar/progress: "Goal: 10,000 declarations" with a progress bar (accent-blue fill, border-subtle bg, rounded, 8px height).
+
+---
+
+**5. Skip Option (bottom)**
+
+Very subtle, not prominent:
+"Go to Dashboard →" link (text-muted, 0.85rem, no underline, hover: text-secondary)
+
+This should NOT compete with the share buttons. It's an escape hatch, not a CTA.
+
+---
+
+## Technical Implementation
+
+### New API Route
+`POST /api/internal/share-count` — increment share counter when any share button is clicked (fire-and-forget, don't block the UI).
+
+`GET /api/stats/shares` — return total share count (for display on this page and optionally on the landing page).
+
+### Database
+Add a `share_count` column to a stats/counters table, or create a simple `shares` table:
+```sql
+-- Option 1: Simple counter in existing stats
+ALTER TABLE ... ADD COLUMN share_count INTEGER DEFAULT 0;
+
+-- Option 2: Detailed tracking (if you want to know which platform)
+CREATE TABLE shares (
+  id TEXT PRIMARY KEY,
+  user_id TEXT REFERENCES users(id),
+  platform TEXT, -- 'twitter', 'facebook', 'linkedin', 'whatsapp', 'copy'
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Navigation
+- After successful face registration (Step 3 complete) → redirect to `/dashboard/share`
+- This page is also accessible from the dashboard sidebar (add a "Share" nav item with a megaphone/share icon)
+- If user visits `/dashboard/share` without having registered a face, show a different state: "Register your face first to join the movement" + CTA to register page
+
+### Twitter Handle
+Use `@MalamhApp` in the pre-written message (create this Twitter account if not already made — important for tracking mentions and building presence).
+
+---
+
+## Animation Details
+
+Page load sequence (staggered):
+1. Checkmark circle draws (0s)
+2. Title fades in (0.5s delay)
+3. Subtitle fades in (0.8s delay)  
+4. Message card slides up + fades in (1.1s delay)
+5. Share buttons slide up + fade in (1.4s delay, staggered 0.1s between each)
+6. Counter fades in (1.8s delay)
+
+All using the same easing and transform approach as the rest of the app: opacity 0→1, translateY 20px→0, ease-out 0.6s.
+
+---
+
+## Why This Matters
+
+Every share is:
+- Free marketing with a direct link to malamh.app
+- Social proof that makes the next person more likely to register
+- A public declaration that builds a movement, not just a user base
+- Content that journalists and tech blogs pick up (imagine 1000 people posting #MyFaceMyRules)
+
+This is the single highest-ROI feature in the entire app. Make it beautiful.

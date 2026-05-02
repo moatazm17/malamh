@@ -12,6 +12,7 @@ import monitorRouter from "./monitor";
 import publicApiRouter from "./public-api";
 import webhooksRouter from "./webhooks";
 import livenessRouter from "./liveness";
+import shareRouter from "./share";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(billingRouter);
 router.use(monitorRouter);
 router.use(publicApiRouter);
 router.use(webhooksRouter);
+router.use(shareRouter);
 
 export default router;

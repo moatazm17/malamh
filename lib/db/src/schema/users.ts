@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, timestamp, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -13,6 +13,7 @@ export const usersTable = pgTable("users", {
   notifyOnScan: boolean("notify_on_scan").notNull().default(true),
   notifyOnConsent: boolean("notify_on_consent").notNull().default(true),
   notifyOnApiCheck: boolean("notify_on_api_check").notNull().default(false),
+  shareCount: integer("share_count").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

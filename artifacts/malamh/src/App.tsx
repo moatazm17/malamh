@@ -21,6 +21,7 @@ import Monitor from "@/pages/dashboard/Monitor";
 import Settings from "@/pages/dashboard/Settings";
 import Activity from "@/pages/dashboard/Activity";
 import Webhooks from "@/pages/dashboard/Webhooks";
+import Share from "@/pages/dashboard/Share";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -53,6 +54,7 @@ function Router() {
       <Route path="/dashboard/settings" component={Settings} />
       <Route path="/dashboard/activity" component={Activity} />
       <Route path="/dashboard/webhooks" component={Webhooks} />
+      <Route path="/dashboard/share" component={Share} />
       <Route component={NotFound} />
     </Switch>
   );
