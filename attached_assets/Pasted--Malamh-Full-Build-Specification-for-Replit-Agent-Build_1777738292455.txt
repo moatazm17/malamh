@@ -1,0 +1,341 @@
+# Malamh (ملامح) — Full Build Specification for Replit Agent
+
+Build a facial consent registry web application called **Malamh** (Arabic for "features/facial features"). It lets people register their face and set consent levels for AI image generation. AI companies check the Malamh API before generating someone's likeness.
+
+---
+
+## Tech Stack
+
+- **Next.js 14** (App Router, TypeScript)
+- **Tailwind CSS** (dark-only theme, custom design tokens)
+- **Prisma** with **SQLite** (for development; schema ready for Postgres migration)
+- **NextAuth.js** v4 (Credentials + optional Google OAuth, JWT sessions)
+- **AWS Rekognition** (@aws-sdk/client-rekognition) for face indexing, matching, and liveness detection
+- **sharp** for server-side image compression before sending to AWS
+- **Stripe** for subscriptions (with demo mode fallback when no API key)
+- **Framer Motion** for animations
+- **Lucide React** for icons
+- **Zod** for validation
+- **bcryptjs** for password hashing
+
+---
+
+## Environment Variables
+
+```
+DATABASE_URL="file:./dev.db"
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="generate-a-random-secret-here"
+
+# AWS Rekognition (required for face matching)
+AWS_ACCESS_KEY_ID=""
+AWS_SECRET_ACCESS_KEY=""
+AWS_REGION="us-east-1"
+AWS_REKOGNITION_COLLECTION="malameh-faces"
+
+# Optional
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
+NEXT_PUBLIC_GOOGLE_AUTH_ENABLED=""
+FACE_SERVICE_URL="http://localhost:8000"
+USE_MOCK_FACES=""
+MATCH_THRESHOLD="0.55"
+STRIPE_SECRET_KEY=""
+STRIPE_PRICE_MONITOR=""
+STRIPE_PRICE_MONITOR_PRO=""
+SERPAPI_KEY=""
+```
+
+---
+
+## Database Schema (Prisma — SQLite compatible, no native enums)
+
+Models: **User**, **Account**, **Session**, **VerificationToken** (NextAuth standard), **Face**, **ApiKey**, **ConsentToken**, **AccessLog**, **Subscription**, **ScanResult**.
+
+### User
+- id (cuid), email (unique), name?, username? (unique), image?, hashedPassword?, emailVerified?, createdAt, updatedAt
+- notifyOnScan (bool, default true), notifyOnConsent (bool, default true), notifyOnApiCheck (bool, default false)
+- Relations: faces[], apiKeys[], accessLogs[], subscription?, scanResults[], consentTokens[], accounts[], sessions[]
+
+### Face
+- id (cuid), userId, embedding (String — JSON-stringified 512-d float array), awsFaceId? (String — AWS Rekognition Face ID), consentLevel (String, default "BLOCKED" — values: BLOCKED | TOKEN_REQUIRED | OPEN), label?, verified (bool, default false), createdAt, updatedAt
+- Relations: accessLogs[], consentTokens[]
+- Index on userId
+
+### ApiKey
+- id (cuid), userId, key (unique, cuid default), name, createdAt, lastUsed?, active (bool, default true), usageCount (int, default 0)
+- Index on userId
+
+### ConsentToken
+- id (cuid), faceId, userId, requesterName, purpose?, token (unique, cuid), approved (bool, default false), used (bool, default false), expiresAt, createdAt
+- Indexes on faceId, userId
+
+### AccessLog
+- id (cuid), faceId?, userId, requesterName, requesterIp, action (String — checked|blocked|allowed|token_issued|token_used|no_match), matchScore (Float), createdAt
+- Indexes on userId, faceId, createdAt
+
+### Subscription
+- id (cuid), userId (unique), plan (String, default "FREE" — FREE|MONITOR|MONITOR_PRO), stripeCustomerId?, stripeSubId?, status (default "active"), createdAt, expiresAt?
+
+### ScanResult
+- id (cuid), userId, sourceUrl, sourceDomain, pageTitle?, matchScore (Float), screenshotUrl?, status (String, default "NEW" — NEW|SEEN|TAKEDOWN_SENT|RESOLVED|IGNORED), createdAt, updatedAt
+
+---
+
+## Design System & Styling
+
+Dark-only theme. No light mode.
+
+### Fonts (Google Fonts via next/font)
+- **Sans (body):** Inter → CSS var `--font-inter`
+- **Display (headings):** Instrument Sans → CSS var `--font-instrument`
+- **Mono (code):** JetBrains Mono → CSS var `--font-jetbrains`
+
+### Color Tokens (Tailwind extend)
+```
+ink-950: #09090b, ink-900: #18181b, ink-800: #27272a, ink-700: #3f3f46, ink-600: #52525b, ink-500: #71717a, ink-400: #a1a1aa, ink-300: #d4d4d8
+accent: #3b82f6 (blue), accent-glow: #60a5fa, accent-deep: #1e40af
+success: #10b981, danger: #ef4444, warning: #f59e0b
+```
+
+### Base styles (globals.css)
+- Body: `bg-ink-950 text-white antialiased`
+- Custom scrollbar (thumb ink-800)
+- Custom component classes using @layer components:
+  - `.surface` — bg-ink-900, border white/5, rounded-2xl, p-6
+  - `.glass` — ink-900/60, backdrop-blur, border white/5
+  - `.btn` — inline-flex, items-center, gap-2, rounded-xl, px-4, py-2.5, text-sm, font-medium, focus ring
+  - `.btn-primary` — bg-accent, hover:bg-accent-glow, text-white
+  - `.btn-ghost` — bg-white/5, hover:bg-white/10, text-ink-300
+  - `.btn-danger` — bg-danger/10, text-danger
+  - `.input` — dark bg-white/5 input with border white/10, focus border-accent
+  - `.badge-blocked` (red), `.badge-token` (yellow), `.badge-open` (green)
+  - `.gradient-text` — bg-clip-text transparent gradient white to ink-400
+  - `.video-frame` — relative rounded-2xl overflow-hidden bg-black border
+
+### Animations
+- fade-in, fade-in-up, pulse-glow, shimmer, spin-slow
+- Box shadows: shadow-glow (accent), shadow-glow-sm
+
+---
+
+## Core Library Files
+
+### lib/aws-rekognition.ts
+AWS Rekognition provider. Functions:
+- `isAwsEnabled()` — checks if AWS credentials are in env
+- `indexFace(imageBytes, externalId)` — IndexFaces into collection, returns awsFaceId. Uses the Prisma face ID as ExternalImageId
+- `searchFace(imageBytes, threshold=70)` — SearchFacesByImage, returns match/score/externalId/awsFaceId
+- `detectFaceAttributes(imageBytes)` — DetectFaces with ALL attributes, returns smile (bool + confidence), eyesOpen, yaw/pitch/roll, brightness, sharpness, boundingBox
+- `deleteFace(awsFaceId)` — DeleteFaces from collection
+- All functions use `sharp` to compress images over 5MB before sending to AWS (resize to 1024px, JPEG 80%)
+- Singleton RekognitionClient with lazy init
+
+### lib/face-service.ts
+Local DeepFace fallback (used when AWS is not configured):
+- `embedFromBlob(blob)` — sends to Python service or returns deterministic mock embedding
+- `cosineSimilarity(a, b)` — vector comparison
+- `matchAgainstRegistry(query, registry, threshold)` — brute-force best match
+- `MATCH_THRESHOLD` from env (default 0.55)
+- Mock mode: deterministic 512-d embedding from image bytes hash
+
+### lib/auth.ts
+NextAuth config: PrismaAdapter, JWT strategy, Credentials provider (email+password via bcrypt), optional Google provider if env vars set. Custom jwt/session callbacks to attach user.id. Sign-in page: /login.
+
+### lib/api-auth.ts
+- `authenticateApiKey(req)` — reads Authorization Bearer header, finds active ApiKey in DB, bumps lastUsed/usageCount
+- `getRequesterIp(req)` — x-forwarded-for / x-real-ip / 127.0.0.1
+
+### lib/prisma.ts
+Singleton Prisma client with dev logging and hot-reload guard.
+
+### lib/utils.ts
+Utility functions: `cn` (clsx+tailwind-merge), `formatRelativeTime`, `formatDate`, `getInitials`, `maskApiKey`, `getDomainFromUrl`, consent/plan/status label maps and types.
+
+---
+
+## API Routes
+
+### Public API (for AI companies — Bearer API key auth)
+
+**POST /api/v1/check-face** — Main endpoint. Multipart: image file + optional requester_name, purpose.
+- If AWS enabled: searchFace → find face in DB → return consent decision (blocked/open/token_required with auth_url)
+- Fallback: embed locally → cosine match against all faces
+- Demo mode: if mock embeddings and no match, simulate against last registered face
+- TOKEN_REQUIRED creates ConsentToken with 24h expiry, returns auth_url
+- Creates AccessLog entry on match
+- Never returns PII (no name, username)
+
+**POST /api/v1/check-face-with-token** — Validate a consent token. Multipart: image + consent_token string.
+- Verifies token exists, not used, not expired, IS approved
+- Matches image against the specific face the token is for
+- Marks token as used on success
+
+**POST /api/v1/request-consent** — JSON: face_id, requester_name, purpose. Creates ConsentToken (24h), returns token + auth_url.
+
+### Internal API (used by frontend)
+
+**POST /api/internal/embed** — Session auth. Single file → embedding.
+
+**POST /api/internal/embed-multi** — Session auth. Multiple files → averaged L2-normalized embedding.
+
+**POST /api/internal/faces** — Session auth. Create face. Accepts FormData (embedding JSON string, consentLevel, label, verified, optional image blob) OR JSON body. If AWS enabled and image provided, indexes face in Rekognition collection and saves awsFaceId.
+
+**PATCH /api/internal/faces/[id]** — Session auth. Update consentLevel, label. Must own face.
+
+**DELETE /api/internal/faces/[id]** — Session auth. If awsFaceId exists, deletes from AWS Rekognition first, then deletes from DB.
+
+**POST /api/internal/match** — Playground endpoint. Multipart image. AWS path or local fallback. Returns consent decision + embedding samples for visualization. Never exposes PII.
+
+**POST /api/internal/consent-check** — AI Studio endpoint. Same as match but also creates AccessLog and returns tokenId for polling.
+
+**POST /api/internal/liveness-frame** — Session auth. Requires AWS. Single video frame → detectFaceAttributes → returns smile, yaw, eyes, quality.
+
+### Consent Management
+
+**POST /api/consent/decision** — Session auth. JSON: token, decision (approve|deny). Must be the face owner. Validates not used/expired.
+
+**GET /api/consent/status/[token]** — Public. Returns status: pending|approved|denied|expired.
+
+### Auth
+
+**GET/POST /api/auth/[...nextauth]** — NextAuth catch-all.
+
+**POST /api/auth/register** — Zod: email, password (min 8), optional name. Creates User + Subscription (FREE). Generates username from email.
+
+### User
+
+**PATCH /api/user/profile** — Session auth. Update name, username (regex: ^[a-z0-9_-]+$), notification prefs.
+
+**DELETE /api/user/delete** — Session auth. Cascading delete.
+
+### API Keys
+
+**GET /api/keys** — Session auth. List user's keys.
+**POST /api/keys** — Session auth. Create key with prefix `mlm_` + 48 hex chars.
+**DELETE /api/keys/[id]** — Session auth. Delete if owned.
+
+### Billing
+
+**POST /api/billing/subscribe** — Session auth. JSON: plan. Demo mode without Stripe key. With Stripe: creates checkout session.
+**POST /api/billing/portal** — Session auth. Stripe billing portal or demo downgrade.
+
+### Monitor
+
+**POST /api/monitor/scan** — Session auth. Requires MONITOR+ plan. Demo: creates 1-3 random ScanResult rows.
+**PATCH /api/monitor/results/[id]** — Session auth. Update status.
+
+---
+
+## Pages & UI
+
+### Landing Page (/)
+Server component. Fetches face/user/accessLog counts from Prisma.
+Sections: Navbar → Hero (animated counter, CTA buttons, mock API terminal) → Stats strip (4 metrics) → How It Works (3 step cards) → Consent Levels (3 cards with code snippets) → For Companies → CTA Section → Footer.
+
+### AI Studio (/ai-studio)
+ChatGPT-like interface for demonstrating consent checking. Full-height layout.
+Flow: Upload/camera photo → write prompt (with suggestion chips) → POST consent-check → branches:
+- **BLOCKED**: Red shield, "Generation Blocked" message, cannot proceed
+- **OPEN**: Green shield, auto-starts simulated generation (fake progress bar, CSS-filtered image result)
+- **TOKEN_REQUIRED**: Warning shield, "Request consent" button opens auth_url in new window, polls GET /api/consent/status/[tokenId] every 2s, shows approved/denied states
+- **No match**: Proceeds with generation (not in registry)
+Client-side image compression: images over 4MB are resized to 1024px max, JPEG 85%.
+
+### Playground (/playground)
+Two-column layout. Left: upload/camera → "Check face" button → result card with ScoreDial (circular SVG), consent badge, optional auth_url link, dual EmbeddingViz (query vs matched). Right: API reference panel with curl/request/response tabs.
+Client-side image compression same as AI Studio.
+
+### Dashboard (/dashboard)
+Protected by session (redirect to /login). Grid layout: 220px sidebar + main content.
+Sidebar links: Overview, Register face, Monitor, Activity, API keys, API tester, Settings.
+
+**Overview** — Stats cards (faces registered, total checks, recent activity count), face grid with FaceCard components, recent activity table.
+
+**Register Face** (/dashboard/register-face) — 3-step flow:
+1. **Capture**: Camera mode with AWS-powered liveness detection (smile + head turn, polling /api/internal/liveness-frame every 1.2s). Shows live AWS analysis sidebar (smile %, yaw angle, eyes). Multi-angle capture (front/left/right). Quality metrics sidebar. Upload mode as alternative (unverified).
+2. **Encode**: Sends photos to /api/internal/embed-multi. Shows staged progress animation, EmbeddingViz of resulting 512-d vector, source photos blur to "Discarded" state.
+3. **Consent**: Three large selectable cards (BLOCKED/TOKEN_REQUIRED/OPEN), optional label, save button sends FormData with embedding + image to /api/internal/faces.
+
+**Face Detail** (/dashboard/face/[id]) — Face icon, consent badge, verified badge, EmbeddingViz, settings form (change consent/label, delete with AWS cleanup), activity table for this face.
+
+**API Keys** (/dashboard/api-keys) — Create keys (name input), list with masked keys, reveal/copy, delete.
+
+**API Tester** (/dashboard/api-test) — Select API key, select endpoint, upload/camera image, shows curl preview, send button, formatted JSON response with status code and timing, request history sidebar.
+
+**Monitor** (/dashboard/monitor) — If MONITOR+ plan: stats, "Run scan" button (demo mode generates random results), result table with status management and takedown modal. Else: paywall with upgrade CTA.
+
+**Settings** (/dashboard/settings) — Profile form, subscription panel, notification toggles, danger zone (delete account).
+
+**Activity** (/dashboard/activity) — Full access log table.
+
+### Auth Pages
+**/login** — Centered card, email/password form, optional Google button, link to register.
+**/register** — Centered card, name/email/password form, link to login.
+
+### Docs (/docs)
+Static API documentation page. Sticky left TOC. Sections: Introduction, Authentication (Bearer token), POST /check-face (with code examples), POST /request-consent, POST /check-face-with-token, Error codes table (400-500), Webhooks ("Coming soon"), SDKs ("Private beta").
+
+### Pricing (/pricing)
+3 tier cards: FREE (3 faces, 100 checks/mo), MONITOR ($9.99/mo, 10 faces, 10K checks, web scanning), MONITOR PRO ($29.99/mo, unlimited). FAQ accordion.
+
+### Public Profile (/u/[username])
+Server-rendered. Shows avatar initials, total faces, consent summary, member since, privacy blurb.
+
+### Consent Approval (/consent/approve/[token])
+Full-page centered card with mesh background. States: not signed in (CTA to login), wrong user (error), token used/expired/already approved (result banners), active (shows requester, purpose, face label, expiry — Deny/Approve buttons via POST /api/consent/decision).
+
+---
+
+## UI Components
+
+### Custom UI Components
+- **Logo** — Brand link with gradient SVG mark
+- **ConsentBadge** — Color-coded pill (red blocked, yellow token, green open)
+- **FaceIcon** — Deterministic abstract SVG face from seed string (unique per face)
+- **EmbeddingViz** — Canvas-rendered waveform visualization of embedding arrays
+- **ScoreDial** — Circular SVG progress dial showing similarity score percentage
+
+### Key Patterns
+- All forms use local error/loading state with try/catch on fetch
+- Framer Motion AnimatePresence for page transitions
+- Server components for data fetching, client components for interactivity
+- Navbar shows session-aware menu (avatar dropdown when logged in)
+- Dashboard sidebar highlights active route via pathname
+
+---
+
+## AWS Rekognition Setup
+
+Before first use, create a collection:
+```bash
+aws rekognition create-collection --collection-id malameh-faces --region us-east-1
+```
+
+The app automatically:
+- Indexes faces on registration (IndexFaces with DB face ID as ExternalImageId)
+- Searches faces on check (SearchFacesByImage, threshold 70%)
+- Detects face attributes for liveness (DetectFaces with ALL attributes)
+- Deletes faces from collection when deleted from DB
+- Compresses images over 5MB using sharp before any AWS call
+
+---
+
+## Critical Privacy Rules
+
+1. **NEVER return PII** (name, username, email) in any public API response or playground/AI studio responses
+2. Only return consent decisions (blocked/open/token_required) and scores
+3. Face embeddings are stored but original images are discarded after encoding
+4. The consent approval page verifies the logged-in user IS the face owner before allowing approve/deny
+
+---
+
+## Important Implementation Notes
+
+1. All consent levels are strings in the DB (not enums) because SQLite doesn't support native enums
+2. API keys are prefixed with `mlm_` followed by 48 random hex characters
+3. The Python face service (DeepFace) is a FALLBACK — primary matching uses AWS Rekognition
+4. Demo mode: when the Python service is unreachable, mock embeddings are generated deterministically from image bytes. Demo matching simulates against the last registered face.
+5. Client-side image compression (canvas resize to 1024px, JPEG 85%) happens before upload in AI Studio, Playground, and API Tester for images over 4MB
+6. Server-side compression via sharp (1024px, JPEG 80%) happens before any AWS API call for images over 5MB
+7. ConsentTokens for internal use (Playground/AI Studio) expire in 1 hour; public API tokens expire in 24 hours
