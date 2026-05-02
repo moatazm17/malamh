@@ -1,0 +1,123 @@
+Do all of the following in one go:
+
+---
+
+## 1. Stripe Billing (use Replit's built-in Stripe integration)
+
+Connect Stripe using Replit's built-in Stripe connector. Create 2 subscription products:
+
+- **Pro** — $12/month (10 faces, 10K API checks/month, weekly web scanning)
+- **API Builder** — $49/month (unlimited faces, unlimited checks, daily web scanning)
+
+Free tier (Personal) stays as-is with limits: 3 faces, 100 checks/month, no scanning.
+
+Wire it so:
+- Pricing page buttons trigger Stripe Checkout for the selected plan
+- On successful payment, update the user's `subscriptions` record with the new plan
+- Dashboard settings page shows current plan with "Manage subscription" button that opens Stripe Customer Portal
+- Enforce plan limits: block face registration if at max faces, block /api/v1/check-face if monthly quota exceeded (return 429 with message)
+
+---
+
+## 2. AI Studio — Full Interactive Demo (not just a pitch page)
+
+Rebuild /ai-studio as a ChatGPT-like full-screen interactive demo. Layout: dark full-height page, centered chat-style interface.
+
+Flow:
+1. User uploads a photo OR takes one with camera (with client-side compression: resize to max 1024px, JPEG 85%, max 4MB)
+2. User types a prompt describing what image they want to generate (show suggestion chips like "Generate a portrait in cyberpunk style", "Create a movie poster featuring this person", "Make an oil painting of this face")
+3. On submit, POST the image to /api/internal/consent-check
+4. Show result based on consent level:
+   - **BLOCKED**: Red shield icon, "Generation Blocked — This person has blocked AI use of their likeness", cannot proceed. Show the match score.
+   - **OPEN**: Green shield, "Consent Verified — Generating..." then show a fake progress bar (5 seconds), then display the original image with a CSS artistic filter (like hue-rotate + saturate) as the "generated" result
+   - **TOKEN_REQUIRED**: Yellow/orange warning shield, "Consent Required" message, show a "Request Consent" button. When clicked, open the consent approval URL in a new tab. Poll GET /api/consent/status/:tokenId every 2 seconds. When approved → proceed with generation. When denied → show "Consent Denied" in red.
+   - **No match** (face not in registry): Show "Not in registry — proceeding with generation" and do the fake generation
+
+The point is to demonstrate the full consent-checking flow visually. This is the main demo page for judges.
+
+---
+
+## 3. Interactive Liveness Detection for Face Registration
+
+Update /dashboard/register-face to use a multi-step camera-based liveness challenge instead of just uploading a photo:
+
+**Step 1 — Liveness Challenge (camera stream):**
+- Show live camera feed in a rounded frame
+- Challenge sequence:
+  1. "Smile for the camera" — poll AWS DetectFaces every 1.2 seconds with a video frame. Pass when smile confidence > 80%.
+  2. "Turn your head to the left" — pass when head pose yaw < -15 degrees
+  3. "Turn your head to the right" — pass when head pose yaw > 15 degrees
+- Show live analysis sidebar: smile percentage bar, yaw angle indicator, eyes open/closed status
+- Green checkmarks appear as each challenge passes
+- Create endpoint POST /api/internal/liveness-frame that accepts a single frame (multipart image), calls AWS Rekognition DetectFaces with ALL attributes, returns: { smile: bool, smileConfidence: number, yaw: number, pitch: number, roll: number, eyesOpen: bool, brightness: number, sharpness: number }
+
+**Step 2 — Multi-angle Capture:**
+- After liveness passes, prompt: "Photo 1 of 3: Look straight" → capture → "Photo 2: Turn slightly left" → capture → "Photo 3: Turn slightly right" → capture
+- Each capture saves a frame from the camera
+
+**Step 3 — Encoding:**
+- Send all 3 photos to POST /api/internal/embed (or process with AWS IndexFaces)
+- Show progress animation
+- Display "Face encoded successfully" with the AWS Face ID
+
+**Step 4 — Set Consent:**
+- Three large cards to choose: BLOCKED (red, shield icon) / TOKEN_REQUIRED (yellow, key icon) / OPEN (green, check icon)
+- Optional label field
+- Save button creates the face record
+
+Also keep an "Upload photo" tab as alternative (marks face as unverified).
+
+---
+
+## 4. Web Scanning (Monitor Feature)
+
+Make the Monitor's "Run scan" button do real web scanning instead of generating fake results.
+
+**Database change:** Add a `source` column to `scan_results` table (string, default "demo", values: "google_lens" | "ai_platform" | "demo"). Also add `reference_image` column to the `faces` table (text, nullable) to store a base64-encoded 256x256 JPEG thumbnail.
+
+**Save reference image:** During face registration, after IndexFaces succeeds, also save a compressed 256x256 JPEG version of the photo as base64 in the face's `reference_image` field.
+
+**New endpoint:** GET /api/internal/face-image/:faceId — session auth, reads the face's `reference_image` base64, decodes it, responds with Content-Type: image/jpeg. This gives external APIs a URL to fetch the image.
+
+**Scanning logic in POST /api/monitor/scan:**
+
+1. Get the user's faces that have a `reference_image`
+2. For each face:
+
+**Source A — SerpAPI Google Lens** (if SERPAPI_KEY secret is set):
+```
+GET https://serpapi.com/search?engine=google_lens&url=<YOUR_APP_URL>/api/internal/face-image/<faceId>&api_key=<SERPAPI_KEY>
+```
+Parse `visual_matches` array from response. Each item has: `link` (page URL), `title`, `source` (domain), `thumbnail`.
+
+**Source B — Lexica.art** (FREE, no key needed):
+```
+GET https://lexica.art/api/v1/search?q=portrait+face+photo
+```
+Returns array of AI-generated images with `src` URLs.
+
+**Verification:** For each candidate from both sources (max 15 per source):
+- Download the image (fetch the thumbnail URL or src)
+- Send to AWS Rekognition SearchFacesByImage against our collection
+- Only keep results where AWS confirms a match with the user's face (score > 70%)
+
+**Store results:** Create scan_results rows with real sourceUrl, sourceDomain, pageTitle, matchScore (from AWS), and source ("google_lens" or "ai_platform").
+
+**Fallback:** If no SERPAPI_KEY and AWS is not set up, keep demo mode (random fake results).
+
+**Frontend updates to Monitor page:**
+- Multi-step progress indicator during scan: "Searching Google..." → "Scanning AI platforms..." → "Verifying matches with AWS..." → "Complete"
+- Source badge on each result: blue badge "Google" / purple badge "AI Platform" / gray "Demo"
+- Keep existing takedown modal and status management as-is
+
+---
+
+## 5. Environment / Secrets
+
+Make sure these are in Replit Secrets:
+- AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION (us-east-1), AWS_REKOGNITION_COLLECTION (malameh-faces) — already set
+- SERPAPI_KEY — get from serpapi.com (free tier = 100 searches/month)
+
+---
+
+That's everything. Build it all, test that each feature works, and let me know when done.

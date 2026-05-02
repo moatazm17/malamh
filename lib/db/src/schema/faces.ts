@@ -15,6 +15,7 @@ export const facesTable = pgTable(
     consentLevel: text("consent_level").notNull().default("BLOCKED"),
     label: text("label"),
     verified: boolean("verified").notNull().default(false),
+    referenceImage: text("reference_image"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

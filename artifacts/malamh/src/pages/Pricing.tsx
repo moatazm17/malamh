@@ -1,42 +1,48 @@
-import { Link } from "wouter";
+import { useState } from "react";
+import { useLocation } from "wouter";
 import { PublicLayout } from "@/components/layout/PublicLayout";
-import { Check } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
+import { apiFetch } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 const plans = [
   {
+    id: null,
     name: "Personal",
     price: "$0",
     period: "forever",
     description: "For individuals who want to protect their likeness.",
     highlight: false,
     features: [
-      "1 face registration",
+      "3 face registrations",
       "100 consent checks / month",
       "Activity log (30 days)",
       "Public profile page",
-      "Consent: blocked or open",
+      "Blocked or open consent",
     ],
     cta: "Get started free",
     href: "/register",
   },
   {
+    id: "PRO",
     name: "Pro",
     price: "$12",
     period: "per month",
     description: "For power users who need fine-grained token control.",
     highlight: true,
     features: [
-      "5 face registrations",
+      "10 face registrations",
       "10,000 consent checks / month",
       "Unlimited activity log",
       "Consent tokens (approve per-request)",
-      "Priority email support",
+      "Weekly web scanning",
       "Analytics dashboard",
     ],
     cta: "Start Pro",
-    href: "/register",
+    href: null,
   },
   {
+    id: "API_BUILDER",
     name: "API Builder",
     price: "$49",
     period: "per month",
@@ -44,25 +50,58 @@ const plans = [
     highlight: false,
     features: [
       "Unlimited face registrations",
-      "100,000 consent checks / month",
+      "Unlimited consent checks",
       "Webhook events",
+      "Daily web scanning",
       "Team members (5 seats)",
-      "SLA 99.9% uptime",
       "Dedicated support channel",
     ],
     cta: "Start building",
-    href: "/register",
+    href: null,
   },
 ];
 
 const faqs = [
-  { q: "Can I change my plan later?", a: "Yes, upgrade or downgrade at any time. Changes take effect at the next billing cycle." },
-  { q: "What counts as a consent check?", a: "Each POST to /api/check or /api/check-image counts as one check, regardless of the result." },
-  { q: "Is my face image stored?", a: "No. We store only a mathematical embedding (a vector of numbers). Your photo is never persisted." },
+  { q: "Can I change my plan later?", a: "Yes, upgrade or downgrade at any time through the Stripe Customer Portal in Settings." },
+  { q: "What counts as a consent check?", a: "Each POST to /api/v1/check-face counts as one check, regardless of the result." },
+  { q: "Is my face image stored?", a: "No. We store only a mathematical embedding (a vector of numbers). Your photo is never persisted — only a tiny 256×256 thumbnail for web scanning." },
   { q: "Do I need a credit card for the free plan?", a: "No. Create an account and start using the free tier immediately." },
 ];
 
 export default function Pricing() {
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState<string | null>(null);
+
+  const handleSubscribe = async (planId: string) => {
+    setLoading(planId);
+    try {
+      const res = await apiFetch("/api/billing/checkout", {
+        method: "POST",
+        body: JSON.stringify({ plan: planId }),
+      });
+
+      if (res.status === 401) {
+        setLocation("/register");
+        return;
+      }
+
+      const data = await res.json();
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else if (data.success) {
+        toast({ title: data.message ?? "Plan upgraded!" });
+        setLocation("/dashboard/settings");
+      } else {
+        toast({ title: data.message ?? "Could not start checkout", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Network error", variant: "destructive" });
+    } finally {
+      setLoading(null);
+    }
+  };
+
   return (
     <PublicLayout>
       <div className="container mx-auto max-w-5xl px-4 py-20">
@@ -95,12 +134,23 @@ export default function Pricing() {
                 ))}
               </ul>
 
-              <Link
-                href={plan.href}
-                className={`btn h-11 text-sm ${plan.highlight ? "btn-primary" : "btn-ghost border border-border/60"}`}
-              >
-                {plan.cta}
-              </Link>
+              {plan.id ? (
+                <button
+                  onClick={() => handleSubscribe(plan.id!)}
+                  disabled={loading === plan.id}
+                  className={`btn h-11 text-sm gap-2 ${plan.highlight ? "btn-primary" : "btn-ghost border border-border/60"}`}
+                >
+                  {loading === plan.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {loading === plan.id ? "Loading…" : plan.cta}
+                </button>
+              ) : (
+                <a
+                  href={plan.href!}
+                  className={`btn h-11 text-sm ${plan.highlight ? "btn-primary" : "btn-ghost border border-border/60"}`}
+                >
+                  {plan.cta}
+                </a>
+              )}
             </div>
           ))}
         </div>

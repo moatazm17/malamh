@@ -11,12 +11,14 @@ import billingRouter from "./billing";
 import monitorRouter from "./monitor";
 import publicApiRouter from "./public-api";
 import webhooksRouter from "./webhooks";
+import livenessRouter from "./liveness";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
 router.use(facesRouter);
+router.use(livenessRouter);
 router.use(keysRouter);
 router.use(consentRouter);
 router.use(userRouter);

@@ -9,6 +9,7 @@ import { searchFacesByImage } from "../lib/rekognition";
 import { cuid, generateToken } from "../lib/id";
 import { logger } from "../lib/logger";
 import { fireWebhook } from "../lib/webhook-service";
+import { checkMonthlyQuota } from "../lib/plan-limits";
 
 const router = Router();
 

@@ -10,8 +10,11 @@ import {
   detectFaces,
   indexFace,
   deleteFaceFromCollection,
+  compressImage,
 } from "../lib/rekognition";
 import { logger } from "../lib/logger";
+import { checkFaceLimit } from "../lib/plan-limits";
+import sharp from "sharp";
 
 const router = Router();
 
@@ -21,6 +24,7 @@ const createFaceSchema = z.object({
   label: z.string().nullable().optional(),
   verified: z.boolean().optional(),
   awsFaceId: z.string().optional(),
+  referenceImage: z.string().nullable().optional(),
 });
 
 const updateFaceSchema = z.object({
@@ -42,7 +46,19 @@ router.post("/internal/faces", requireSession, async (req, res) => {
     return;
   }
 
-  const { embedding, consentLevel, label, verified, awsFaceId } = parsed.data;
+  // Enforce plan face limit
+  const limitCheck = await checkFaceLimit(user.id);
+  if (!limitCheck.allowed) {
+    res.status(403).json({
+      error: "PlanLimitExceeded",
+      message: `Your ${limitCheck.plan} plan allows up to ${limitCheck.limit} face${limitCheck.limit === 1 ? "" : "s"} (you have ${limitCheck.current}). Upgrade to register more.`,
+      current: limitCheck.current,
+      limit: limitCheck.limit,
+    });
+    return;
+  }
+
+  const { embedding, consentLevel, label, verified, awsFaceId, referenceImage } = parsed.data;
 
   const face = await db.insert(facesTable).values({
     id: cuid(),
@@ -52,6 +68,7 @@ router.post("/internal/faces", requireSession, async (req, res) => {
     consentLevel,
     label: label ?? null,
     verified: verified ?? false,
+    referenceImage: referenceImage ?? null,
   }).returning();
 
   res.status(201).json(sanitizeFace(face[0]));
@@ -106,7 +123,6 @@ router.delete("/internal/faces/:id", requireSession, async (req, res) => {
     return;
   }
 
-  // Remove from AWS Rekognition collection if indexed
   if (existing.awsFaceId && !isMockMode()) {
     try {
       await deleteFaceFromCollection(existing.awsFaceId);
@@ -135,13 +151,32 @@ router.get("/internal/faces/:id/activity", requireSession, async (req, res) => {
 });
 
 /**
+ * GET /internal/face-image/:id
+ * Returns the stored reference thumbnail as image/jpeg.
+ */
+router.get("/internal/face-image/:id", requireSession, async (req, res) => {
+  const user = (req as any).user;
+  const [face] = await db.select().from(facesTable)
+    .where(and(eq(facesTable.id, req.params.id), eq(facesTable.userId, user.id)))
+    .limit(1);
+
+  if (!face || !face.referenceImage) {
+    res.status(404).json({ error: "NotFound", message: "No reference image stored for this face" });
+    return;
+  }
+
+  const base64 = face.referenceImage.replace(/^data:[^,]+,/, "");
+  const imageBuffer = Buffer.from(base64, "base64");
+  res.setHeader("Content-Type", "image/jpeg");
+  res.setHeader("Cache-Control", "public, max-age=86400");
+  res.send(imageBuffer);
+});
+
+/**
  * POST /internal/embed
  *
- * AWS mode:  DetectFaces (liveness) → IndexFaces → returns { awsFaceId, embedding: awsFaceId, mock: false }
+ * AWS mode:  DetectFaces (liveness) → IndexFaces → returns { awsFaceId, embedding: awsFaceId, referenceImageBase64, mock: false }
  * Mock mode: deterministic vector hash → returns { embedding: JSON vector, mock: true }
- *
- * The returned `embedding` value is stored verbatim in the faces table; in AWS mode the
- * `awsFaceId` field is also included so the caller can pass it through to POST /internal/faces.
  */
 router.post("/internal/embed", requireSession, async (req, res) => {
   const { imageBase64, label } = req.body;
@@ -152,8 +187,19 @@ router.post("/internal/embed", requireSession, async (req, res) => {
 
   const imageBytes = Buffer.from(imageBase64.replace(/^data:[^,]+,/, ""), "base64");
 
+  // Generate 256x256 reference thumbnail
+  let referenceImageBase64: string | null = null;
+  try {
+    const thumb = await sharp(imageBytes)
+      .resize(256, 256, { fit: "cover", position: "center" })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+    referenceImageBase64 = `data:image/jpeg;base64,${thumb.toString("base64")}`;
+  } catch (err) {
+    logger.warn({ err }, "Failed to generate reference thumbnail");
+  }
+
   if (!isMockMode()) {
-    // --- AWS Rekognition path ---
     try {
       const detection = await detectFaces(imageBytes);
 
@@ -173,14 +219,13 @@ router.post("/internal/embed", requireSession, async (req, res) => {
         return;
       }
 
-      // Use a temp ID as externalImageId; will be replaced after face record is created.
-      // We index with a provisional ID — the caller must call POST /internal/faces immediately after.
       const tempId = cuid();
       const { awsFaceId, confidence } = await indexFace(imageBytes, tempId);
 
       res.json({
-        embedding: awsFaceId,  // stored in faces.embedding for backwards compat
+        embedding: awsFaceId,
         awsFaceId,
+        referenceImageBase64,
         mock: false,
         faceCount: detection.faceCount,
         confidence,
@@ -192,14 +237,12 @@ router.post("/internal/embed", requireSession, async (req, res) => {
     return;
   }
 
-  // --- Mock fallback path ---
   const embedding = mockEmbedding(imageBytes);
-  res.json({ embedding: JSON.stringify(embedding), mock: true });
+  res.json({ embedding: JSON.stringify(embedding), referenceImageBase64, mock: true });
 });
 
 function sanitizeFace(face: any) {
-  // Strip the raw embedding from list/detail responses
-  const { embedding, ...rest } = face;
+  const { embedding, referenceImage, ...rest } = face;
   return rest;
 }
 
