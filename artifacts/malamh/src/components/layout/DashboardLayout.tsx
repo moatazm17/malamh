@@ -3,7 +3,7 @@ import { useClerk } from "@clerk/react";
 import { useGetMe } from "@workspace/api-client-react";
 import {
   LayoutGrid, Camera, Activity as ActivityIcon, Key, Play, Settings as SettingsIcon,
-  LogOut, Loader2, Webhook, Radar, Megaphone,
+  LogOut, Loader2, Webhook, Radar, Megaphone, Sparkles, Gamepad2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { MalamhMark } from "./PublicLayout";
@@ -11,6 +11,8 @@ import { MalamhMark } from "./PublicLayout";
 const navItems = [
   { href: "/dashboard/overview", label: "Overview", icon: LayoutGrid },
   { href: "/dashboard/register-face", label: "Register Face", icon: Camera },
+  { href: "/ai-studio", label: "AI Studio", icon: Sparkles },
+  { href: "/playground", label: "Playground", icon: Gamepad2 },
   { href: "/dashboard/api-keys", label: "API Keys", icon: Key },
   { href: "/dashboard/api-test", label: "API Tester", icon: Play },
   { href: "/dashboard/monitor", label: "Monitor", icon: Radar },

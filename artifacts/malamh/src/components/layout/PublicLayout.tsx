@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { Menu, X } from "lucide-react";
+import { Menu, X, LayoutGrid } from "lucide-react";
+import { useAuth } from "@clerk/react";
 
 const NAV_ITEMS: Array<{ href: string; label: string }> = [
   { href: "/playground", label: "Playground" },
@@ -12,6 +13,7 @@ const NAV_ITEMS: Array<{ href: string; label: string }> = [
 export function PublicLayout({ children, transparentHeader = false }: { children: React.ReactNode; transparentHeader?: boolean }) {
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { isSignedIn } = useAuth();
 
   useEffect(() => { setMobileOpen(false); }, [location]);
 
@@ -52,12 +54,20 @@ export function PublicLayout({ children, transparentHeader = false }: { children
           </nav>
 
           <div className="flex items-center gap-4">
-            <Link href="/login" className="text-sm font-medium transition-colors hidden sm:inline" style={{ color: "var(--text-secondary)" }}>
-              Log in
-            </Link>
-            <Link href="/register" className="btn-mh btn-mh-primary hidden sm:inline-flex">
-              Get Started
-            </Link>
+            {isSignedIn ? (
+              <Link href="/dashboard/overview" className="btn-mh btn-mh-primary hidden sm:inline-flex">
+                <LayoutGrid className="w-4 h-4" /> Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link href="/sign-in" className="text-sm font-medium transition-colors hidden sm:inline" style={{ color: "var(--text-secondary)" }}>
+                  Log in
+                </Link>
+                <Link href="/sign-up" className="btn-mh btn-mh-primary hidden sm:inline-flex">
+                  Get Started
+                </Link>
+              </>
+            )}
             <button
               type="button"
               aria-label={mobileOpen ? "Close menu" : "Open menu"}
@@ -94,20 +104,32 @@ export function PublicLayout({ children, transparentHeader = false }: { children
                 );
               })}
               <div className="h-px my-3" style={{ background: "var(--border-subtle)" }} />
-              <Link
-                href="/login"
-                className="text-base font-medium py-3 px-3 rounded-lg transition-colors"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                Log in
-              </Link>
-              <Link
-                href="/register"
-                className="btn-mh btn-mh-primary justify-center mt-2"
-                style={{ padding: "12px 20px" }}
-              >
-                Get Started
-              </Link>
+              {isSignedIn ? (
+                <Link
+                  href="/dashboard/overview"
+                  className="btn-mh btn-mh-primary justify-center mt-2"
+                  style={{ padding: "12px 20px" }}
+                >
+                  <LayoutGrid className="w-4 h-4" /> Open Dashboard
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    href="/sign-in"
+                    className="text-base font-medium py-3 px-3 rounded-lg transition-colors"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Log in
+                  </Link>
+                  <Link
+                    href="/sign-up"
+                    className="btn-mh btn-mh-primary justify-center mt-2"
+                    style={{ padding: "12px 20px" }}
+                  >
+                    Get Started
+                  </Link>
+                </>
+              )}
             </nav>
           </div>
         )}

@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { ClerkProvider, SignIn, SignUp, useClerk } from "@clerk/react";
+import { ClerkProvider, SignIn, SignUp, useClerk, useAuth } from "@clerk/react";
+import { Redirect } from "wouter";
 import { dark } from "@clerk/themes";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -101,6 +102,8 @@ const clerkAppearance = {
 };
 
 function SignInPage() {
+  const { isLoaded, isSignedIn } = useAuth();
+  if (isLoaded && isSignedIn) return <Redirect to="/dashboard/overview" />;
   return (
     <div
       className="flex min-h-[100dvh] items-center justify-center px-4 relative overflow-hidden"
@@ -136,6 +139,8 @@ function SignInPage() {
 }
 
 function SignUpPage() {
+  const { isLoaded, isSignedIn } = useAuth();
+  if (isLoaded && isSignedIn) return <Redirect to="/dashboard/overview" />;
   return (
     <div
       className="flex min-h-[100dvh] items-center justify-center px-4 relative overflow-hidden"
