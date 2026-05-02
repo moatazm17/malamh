@@ -5,16 +5,9 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { requireSession } from "../lib/auth";
 import { logger } from "../lib/logger";
+import { getUncachableStripeClient } from "../lib/stripe-client";
 
 const router = Router();
-
-function getStripe() {
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) return null;
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const Stripe = require("stripe");
-  return new Stripe(key, { apiVersion: "2024-11-20.acacia" });
-}
 
 const PRICE_IDS: Record<string, string | undefined> = {
   PRO: process.env.STRIPE_PRICE_PRO,
@@ -52,9 +45,10 @@ router.post("/billing/checkout", requireSession, async (req, res) => {
   }
 
   const { plan } = parsed.data;
-  const stripe = getStripe();
+  const stripe = await getUncachableStripeClient();
 
   if (!stripe) {
+    // Demo mode — no Stripe configured
     await db
       .update(subscriptionsTable)
       .set({ plan, status: "active" })
@@ -64,14 +58,25 @@ router.post("/billing/checkout", requireSession, async (req, res) => {
       success: true,
       checkoutUrl: null,
       plan,
-      message: `Upgraded to ${PLAN_NAMES[plan]} (demo mode)`,
+      message: `Upgraded to ${PLAN_NAMES[plan]} (demo mode — no payment required)`,
     });
     return;
   }
 
   const priceId = PRICE_IDS[plan];
   if (!priceId) {
-    res.status(500).json({ error: "ConfigError", message: `STRIPE_PRICE_${plan} not configured` });
+    // No price ID configured yet — still demo-upgrade but warn
+    logger.warn({ plan }, "Stripe price ID not configured, using demo upgrade");
+    await db
+      .update(subscriptionsTable)
+      .set({ plan, status: "active" })
+      .where(eq(subscriptionsTable.userId, user.id));
+    res.json({
+      success: true,
+      checkoutUrl: null,
+      plan,
+      message: `Upgraded to ${PLAN_NAMES[plan]} (Stripe price not yet configured — set STRIPE_PRICE_${plan})`,
+    });
     return;
   }
 
@@ -117,7 +122,7 @@ router.post("/billing/checkout", requireSession, async (req, res) => {
 
 router.post("/billing/portal", requireSession, async (req, res) => {
   const user = (req as any).user;
-  const stripe = getStripe();
+  const stripe = await getUncachableStripeClient();
 
   if (!stripe) {
     await db
@@ -136,7 +141,7 @@ router.post("/billing/portal", requireSession, async (req, res) => {
       .limit(1);
 
     if (!sub?.stripeCustomerId) {
-      res.status(400).json({ error: "BadRequest", message: "No Stripe customer found" });
+      res.status(400).json({ error: "BadRequest", message: "No Stripe customer found — subscribe first" });
       return;
     }
 
@@ -153,8 +158,13 @@ router.post("/billing/portal", requireSession, async (req, res) => {
   }
 });
 
+/**
+ * POST /billing/webhook
+ * Receives Stripe events and updates subscription status.
+ * Set STRIPE_WEBHOOK_SECRET to verify signatures.
+ */
 router.post("/billing/webhook", async (req, res) => {
-  const stripe = getStripe();
+  const stripe = await getUncachableStripeClient();
   if (!stripe) {
     res.json({ received: true });
     return;
@@ -181,18 +191,12 @@ router.post("/billing/webhook", async (req, res) => {
       const session = event.data.object;
       const userId = session.metadata?.userId;
       const plan = session.metadata?.plan;
-
       if (userId && plan) {
         await db
           .update(subscriptionsTable)
-          .set({
-            plan,
-            status: "active",
-            stripeCustomerId: session.customer,
-            stripeSubId: session.subscription,
-          })
+          .set({ plan, status: "active", stripeCustomerId: session.customer, stripeSubId: session.subscription })
           .where(eq(subscriptionsTable.userId, userId));
-        logger.info({ userId, plan }, "Subscription activated via checkout");
+        logger.info({ userId, plan }, "Subscription activated via Stripe checkout");
       }
     }
 
@@ -208,11 +212,11 @@ router.post("/billing/webhook", async (req, res) => {
           .update(subscriptionsTable)
           .set({ plan: "FREE", status: "active", stripeSubId: null })
           .where(eq(subscriptionsTable.userId, dbSub.userId));
-        logger.info({ userId: dbSub.userId }, "Subscription cancelled, downgraded to FREE");
+        logger.info({ userId: dbSub.userId }, "Subscription cancelled via Stripe, downgraded to FREE");
       }
     }
   } catch (err) {
-    logger.error({ err, eventType: event.type }, "Error handling Stripe webhook");
+    logger.error({ err, eventType: event.type }, "Error handling Stripe webhook event");
   }
 
   res.json({ received: true });

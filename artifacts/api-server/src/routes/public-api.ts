@@ -75,6 +75,18 @@ router.post("/v1/check-face", async (req, res) => {
     return;
   }
 
+  // Enforce monthly quota
+  const quota = await checkMonthlyQuota(apiAuth.userId);
+  if (!quota.allowed) {
+    res.status(429).json({
+      error: "QuotaExceeded",
+      message: `Monthly limit of ${quota.limit.toLocaleString()} checks reached for ${quota.plan} plan. Upgrade to increase your quota.`,
+      limit: quota.limit,
+      current: quota.current,
+    });
+    return;
+  }
+
   const parsed = z.object({
     imageBase64: z.string(),
     requesterName: z.string().optional(),
