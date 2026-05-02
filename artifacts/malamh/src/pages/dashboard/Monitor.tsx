@@ -1,9 +1,13 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { useListScanResults, useRunMonitorScan, useGetDashboardStats } from "@workspace/api-client-react";
-import { Loader2, Radar, ExternalLink, ShieldOff } from "lucide-react";
+import { useListScanResults, useRunMonitorScan, useGetDashboardStats, useGetMe } from "@workspace/api-client-react";
+import { Loader2, Radar, ExternalLink, ShieldOff, Sparkles, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { useQueryClient } from "@tanstack/react-query";
+
+const PLANS_WITH_MONITOR = ["MONITOR", "MONITOR_PRO", "PRO", "API_BUILDER"];
 
 type ScanPhase = "idle" | "google" | "ai" | "verifying" | "done";
 
@@ -22,10 +26,14 @@ const PHASE_LABEL: Record<Exclude<ScanPhase, "idle" | "done">, string> = {
 export default function Monitor() {
   const { data: scanResults, isLoading } = useListScanResults();
   const { data: stats } = useGetDashboardStats();
+  const { data: me } = useGetMe();
   const runScan = useRunMonitorScan();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [scanPhase, setScanPhase] = useState<ScanPhase>("idle");
+
+  const plan = ((me as any)?.subscription?.plan as string | undefined)?.toUpperCase() ?? "FREE";
+  const hasMonitor = PLANS_WITH_MONITOR.includes(plan);
 
   const results = (scanResults?.results ?? scanResults ?? []) as Array<{
     id: string; sourceUrl: string; sourceDomain: string; pageTitle?: string | null;
@@ -58,9 +66,13 @@ export default function Monitor() {
         const serverMsg = err?.response?.data?.message ?? err?.data?.message ?? err?.message;
         if (status === 403) {
           toast({
-            title: "Web Monitor requires an upgrade",
-            description: serverMsg ?? "Upgrade to PRO or MONITOR to scan the web for unauthorized use of your face.",
-            variant: "destructive",
+            title: "Web Monitor is a Pro feature",
+            description: "Unlock continuous web scanning to find unauthorized use of your face on Google, Lexica, and more.",
+            action: (
+              <ToastAction altText="Upgrade plan" asChild>
+                <Link href="/pricing">Upgrade</Link>
+              </ToastAction>
+            ),
           });
         } else {
           toast({
@@ -86,14 +98,47 @@ export default function Monitor() {
               Hunt the web for unauthorized use of your likeness.
             </p>
           </div>
-          <button
-            onClick={handleScan} disabled={scanning}
-            className="btn-mh btn-mh-primary group"
-          >
-            {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Radar className="w-4 h-4 group-hover:animate-spin" />}
-            {scanning ? "Scanning…" : "Scan Now"}
-          </button>
+          {hasMonitor ? (
+            <button
+              onClick={handleScan} disabled={scanning}
+              className="btn-mh btn-mh-primary group"
+            >
+              {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Radar className="w-4 h-4 group-hover:animate-spin" />}
+              {scanning ? "Scanning…" : "Scan Now"}
+            </button>
+          ) : (
+            <Link href="/pricing" className="btn-mh btn-mh-primary group">
+              <Sparkles className="w-4 h-4" /> Upgrade to scan
+            </Link>
+          )}
         </div>
+
+        {!hasMonitor && (
+          <div
+            className="glass-card-elevated p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center gap-5"
+            style={{
+              border: "1px solid var(--accent-amber)",
+              background: "linear-gradient(135deg, var(--accent-amber-glow), transparent)",
+            }}
+          >
+            <div
+              className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ background: "var(--accent-amber-glow)", border: "1px solid var(--accent-amber)" }}
+            >
+              <Lock className="w-6 h-6" style={{ color: "var(--accent-amber)" }} />
+            </div>
+            <div className="flex-1">
+              <div className="section-label mb-1" style={{ color: "var(--accent-amber)" }}>Pro feature</div>
+              <h3 className="headline-section text-lg md:text-xl mb-1.5">Web Monitor isn't included on your <span style={{ color: "var(--accent-amber)" }}>{plan}</span> plan</h3>
+              <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                Continuously scan Google Images, Lexica, and other AI platforms for unauthorized use of your likeness. Get takedown-ready evidence the moment your face appears somewhere it shouldn't.
+              </p>
+            </div>
+            <Link href="/pricing" className="btn-mh btn-mh-primary flex-shrink-0">
+              <Sparkles className="w-4 h-4" /> See plans
+            </Link>
+          </div>
+        )}
 
         {/* Scanning radar */}
         {scanning && (
@@ -125,9 +170,9 @@ export default function Monitor() {
         ) : !Array.isArray(results) || results.length === 0 ? (
           <div className="glass-card p-16 text-center">
             <Radar className="w-14 h-14 mx-auto mb-4 opacity-30" style={{ color: "var(--text-muted)" }} />
-            <h3 className="headline-section text-xl mb-2">No matches found</h3>
+            <h3 className="headline-section text-xl mb-2">{hasMonitor ? "No matches found" : "Nothing to show yet"}</h3>
             <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-              Your face is safe — for now.
+              {hasMonitor ? "Your face is safe — for now." : "Run your first scan after upgrading to start protecting your likeness."}
             </p>
           </div>
         ) : (
