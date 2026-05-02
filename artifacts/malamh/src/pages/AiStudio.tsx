@@ -91,7 +91,7 @@ export default function AiStudio() {
       const rawB64 = imageBase64.split(",")[1] || imageBase64;
       const res = await apiFetch("/api/internal/consent-check", {
         method: "POST",
-        body: JSON.stringify({ imageBase64: rawB64, requesterName: "AI Studio Demo", purpose: prompt }),
+        body: JSON.stringify({ imageBase64: rawB64, requesterName: "AI Studio", purpose: prompt }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -174,10 +174,10 @@ export default function AiStudio() {
       {/* Main */}
       <div className="flex-1 max-w-6xl w-full mx-auto px-6 py-12">
         <div className="text-center mb-10">
-          <div className="section-label mb-3">Demo</div>
+          <div className="section-label mb-3">AI Studio</div>
           <h1 className="headline-display text-4xl md:text-5xl mb-4">Consent-aware AI generation</h1>
           <p className="max-w-xl mx-auto" style={{ color: "var(--text-secondary)" }}>
-            Watch what happens when an AI tool checks Malamh before generating.
+            Upload any photo. We check the live registry first, then only generate if consent allows.
           </p>
         </div>
 

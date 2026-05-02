@@ -1,19 +1,14 @@
-import { useState, useEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 import { PublicLayout } from "@/components/layout/PublicLayout";
-import { ScanFace, Loader2, XCircle, Shield } from "lucide-react";
+import { Loader2, Shield, Upload, Camera, X, ScanFace } from "lucide-react";
 
-type ConsentLevel = "blocked" | "token" | "open";
+type Status = "open" | "blocked" | "token_required" | "no_match";
 
-const DEMO_FACES = [
-  { id: "demo_face_001", label: "Alice Chen", consent: "open" as ConsentLevel },
-  { id: "demo_face_002", label: "Bob Williams", consent: "blocked" as ConsentLevel },
-  { id: "demo_face_003", label: "Carla Russo", consent: "token" as ConsentLevel },
-];
-
-const consentMeta: Record<ConsentLevel, { label: string; badge: string; color: string }> = {
+const statusMeta: Record<Status, { label: string; badge: string; color: string }> = {
   open: { label: "OPEN", badge: "badge-open", color: "var(--accent-green)" },
   blocked: { label: "BLOCKED", badge: "badge-blocked", color: "var(--accent-red)" },
-  token: { label: "TOKEN REQUIRED", badge: "badge-token", color: "var(--accent-amber)" },
+  token_required: { label: "TOKEN REQUIRED", badge: "badge-token", color: "var(--accent-amber)" },
+  no_match: { label: "NO MATCH", badge: "badge-mh", color: "var(--text-muted)" },
 };
 
 function ScoreRing({ value, color }: { value: number; color: string }) {
@@ -44,35 +39,109 @@ function ScoreRing({ value, color }: { value: number; color: string }) {
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="headline-display text-5xl" style={{ color }}>{drawn.toFixed(0)}%</span>
-        <span className="text-xs mt-1 section-label">Confidence</span>
+        <span className="text-xs mt-1 section-label">Match score</span>
       </div>
     </div>
   );
 }
 
-export default function Playground() {
-  const [faceId, setFaceId] = useState("");
-  const [result, setResult] = useState<{ consent: ConsentLevel; face_id: string; latency: number; score: number } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [noMatch, setNoMatch] = useState(false);
+async function compressImage(file: File, maxDim = 1024, quality = 0.85): Promise<string> {
+  const dataUrl: string = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const i = new Image();
+    i.onload = () => resolve(i);
+    i.onerror = reject;
+    i.src = dataUrl;
+  });
+  const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+  const w = Math.round(img.width * scale);
+  const h = Math.round(img.height * scale);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(img, 0, 0, w, h);
+  return canvas.toDataURL("image/jpeg", quality);
+}
 
-  const check = async (id: string) => {
-    setLoading(true);
+export default function Playground() {
+  const [photoSrc, setPhotoSrc] = useState<string | null>(null);
+  const [imageBase64, setImageBase64] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{
+    status: Status;
+    matchScore: number | null;
+    authUrl: string | null;
+    tokenId: string | null;
+    mock?: boolean;
+    latency_ms: number;
+  } | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  const loadFile = async (file: File) => {
+    setError(null);
     setResult(null);
-    setNoMatch(false);
-    const start = Date.now();
-    await new Promise((r) => setTimeout(r, 600 + Math.random() * 400));
-    const demo = DEMO_FACES.find((f) => f.id === id || f.label.toLowerCase().includes(id.toLowerCase()));
-    const latency = Date.now() - start;
-    if (demo) setResult({ consent: demo.consent, face_id: demo.id, latency, score: 88 + Math.random() * 11 });
-    else setNoMatch(true);
-    setLoading(false);
+    try {
+      const compressed = await compressImage(file);
+      setPhotoSrc(compressed);
+      setImageBase64(compressed.replace(/^data:[^,]+,/, ""));
+    } catch (err: any) {
+      setError(err?.message ?? "Could not load image");
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    if (!faceId.trim()) return;
-    check(faceId.trim());
+    const f = e.dataTransfer.files?.[0];
+    if (f) loadFile(f);
+  };
+
+  const reset = () => {
+    setPhotoSrc(null);
+    setImageBase64(null);
+    setResult(null);
+    setError(null);
+  };
+
+  const runCheck = async () => {
+    if (!imageBase64) return;
+    setLoading(true);
+    setResult(null);
+    setError(null);
+    const start = Date.now();
+    try {
+      const res = await fetch("/api/internal/match", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64, requesterName: "Playground", purpose: "API playground test" }),
+      });
+      const latency_ms = Date.now() - start;
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.message ?? `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      setResult({
+        status: data.status,
+        matchScore: data.matchScore,
+        authUrl: data.authUrl,
+        tokenId: data.tokenId,
+        mock: data.mock,
+        latency_ms,
+      });
+    } catch (err: any) {
+      setError(err?.message ?? "Request failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -80,58 +149,75 @@ export default function Playground() {
       <div className="max-w-6xl mx-auto px-6 py-16">
         <div className="text-center mb-10">
           <div className="section-label mb-3">Playground</div>
-          <h1 className="headline-display text-4xl md:text-5xl mb-4">Test the API</h1>
+          <h1 className="headline-display text-4xl md:text-5xl mb-4">Test the API live</h1>
           <p className="max-w-xl mx-auto" style={{ color: "var(--text-secondary)" }}>
-            Live consent-check API. Try a demo face ID or your own.
+            Upload any photo. We run it against the live consent registry and return the real JSON response.
           </p>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-6">
           {/* LEFT — input */}
-          <div className="glass-card-elevated p-8">
+          <div className="glass-card-elevated p-7 flex flex-col">
             <div className="section-label mb-4">Input</div>
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              <input
-                type="text" value={faceId} onChange={(e) => setFaceId(e.target.value)}
-                className="input-mh" placeholder="Enter face_id or demo name…"
-              />
-              <button type="submit" disabled={loading} className="btn-mh btn-mh-primary w-full justify-center">
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><ScanFace className="w-4 h-4" /> Check Face</>}
-              </button>
-            </form>
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleDrop}
+              onClick={() => !photoSrc && fileInputRef.current?.click()}
+              className="rounded-2xl transition-all overflow-hidden mb-5"
+              style={{
+                border: photoSrc ? "1px solid var(--border-subtle)" : "2px dashed var(--border-subtle)",
+                cursor: photoSrc ? "default" : "pointer",
+                background: "var(--bg-void)",
+                minHeight: photoSrc ? "auto" : 220,
+              }}
+            >
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) loadFile(f); }} />
+              <input ref={cameraInputRef} type="file" accept="image/*" capture="user" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) loadFile(f); }} />
+              {photoSrc ? (
+                <div className="relative">
+                  <img src={photoSrc} alt="Uploaded" className="w-full max-h-80 object-cover" />
+                  <button onClick={(e) => { e.stopPropagation(); reset(); }} className="absolute top-3 right-3 p-2 rounded-full" style={{ background: "rgba(0,0,0,0.6)", border: "1px solid var(--border-subtle)" }}>
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-14 gap-3">
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: "var(--accent-blue-glow)", border: "1px solid var(--accent-blue)" }}>
+                    <Upload className="w-6 h-6" style={{ color: "var(--accent-blue)" }} />
+                  </div>
+                  <p className="text-sm font-medium">Drop a photo or click to upload</p>
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>JPG, PNG, WebP · auto-compressed</p>
+                  <button onClick={(e) => { e.stopPropagation(); cameraInputRef.current?.click(); }} className="btn-mh btn-mh-ghost text-xs mt-2" style={{ padding: "6px 14px" }}>
+                    <Camera className="w-3.5 h-3.5" /> Use camera
+                  </button>
+                </div>
+              )}
+            </div>
 
-            <div className="mt-6">
-              <div className="section-label mb-3">Quick test</div>
-              <div className="flex flex-col gap-2">
-                {DEMO_FACES.map((f) => {
-                  const meta = consentMeta[f.consent];
-                  return (
-                    <button
-                      key={f.id}
-                      onClick={() => { setFaceId(f.id); check(f.id); }}
-                      className="flex items-center justify-between text-left rounded-lg px-4 py-3 transition-colors"
-                      style={{ background: "var(--bg-void)", border: "1px solid var(--border-subtle)" }}
-                    >
-                      <div>
-                        <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>{f.label}</div>
-                        <div className="text-xs font-mono" style={{ color: "var(--text-muted)" }}>{f.id}</div>
-                      </div>
-                      <span className={`badge-mh ${meta.badge}`}>{meta.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
+            <button
+              onClick={runCheck}
+              disabled={!imageBase64 || loading}
+              className="btn-mh btn-mh-primary w-full justify-center"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><ScanFace className="w-4 h-4" /> Run consent check</>}
+            </button>
+
+            <div className="mt-5">
+              <div className="section-label mb-2">Endpoint</div>
+              <code className="block text-xs font-mono px-3 py-2 rounded-md" style={{ background: "var(--bg-void)", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)" }}>
+                POST /api/internal/match
+              </code>
             </div>
           </div>
 
           {/* RIGHT — result */}
-          <div className="glass-card-elevated p-8 min-h-[420px] flex flex-col">
-            <div className="section-label mb-4">Result</div>
+          <div className="glass-card-elevated p-7 min-h-[420px] flex flex-col">
+            <div className="section-label mb-4">Response</div>
             <div className="flex-1 flex flex-col items-center justify-center">
-              {!result && !noMatch && !loading && (
+              {!result && !error && !loading && (
                 <div className="text-center">
                   <Shield className="w-12 h-12 mx-auto mb-4 opacity-30" style={{ color: "var(--text-muted)" }} />
-                  <p className="text-sm" style={{ color: "var(--text-muted)" }}>Submit a face ID to see the response</p>
+                  <p className="text-sm" style={{ color: "var(--text-muted)" }}>Upload a photo and run a check</p>
                 </div>
               )}
               {loading && (
@@ -140,31 +226,47 @@ export default function Playground() {
                   <p className="text-sm section-label">Checking registry…</p>
                 </div>
               )}
-              {noMatch && (
+              {error && (
                 <div className="text-center">
-                  <Shield className="w-12 h-12 mx-auto mb-4 opacity-50" style={{ color: "var(--text-muted)" }} />
-                  <h3 className="headline-section text-xl mb-2">No match found in registry</h3>
-                  <p className="text-sm" style={{ color: "var(--text-secondary)" }}>This face is not protected.</p>
+                  <X className="w-12 h-12 mx-auto mb-4" style={{ color: "var(--accent-red)" }} />
+                  <h3 className="headline-section text-xl mb-2">Request failed</h3>
+                  <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{error}</p>
                 </div>
               )}
               {result && (() => {
-                const meta = consentMeta[result.consent];
+                const meta = statusMeta[result.status];
+                const score = result.matchScore != null ? result.matchScore : 0;
                 return (
                   <div className="text-center w-full anim-scale-in">
-                    <ScoreRing value={result.score} color={meta.color} />
+                    {result.matchScore != null ? (
+                      <ScoreRing value={score} color={meta.color} />
+                    ) : (
+                      <Shield className="w-16 h-16 mx-auto mb-2" style={{ color: meta.color }} />
+                    )}
                     <span className={`badge-mh ${meta.badge} mt-5 text-sm`}>{meta.label}</span>
-                    <p className="mt-3 text-base font-medium" style={{ color: "var(--text-primary)" }}>{DEMO_FACES.find(f => f.id === result.face_id)?.label}</p>
+                    <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
+                      {result.latency_ms} ms{result.mock ? " · mock matcher" : ""}
+                    </p>
+                    {result.authUrl && (
+                      <a href={result.authUrl} target="_blank" rel="noreferrer" className="btn-mh btn-mh-ghost text-xs mt-4 inline-flex">
+                        Open consent request →
+                      </a>
+                    )}
                     <details className="mt-5 text-left">
                       <summary className="cursor-pointer text-xs section-label">Raw JSON response</summary>
                       <pre className="code-block mt-2 text-xs">
-{`{
-  "face_id": "${result.face_id}",
-  "consent": "${result.consent}",
-  "allowed": ${result.consent !== "blocked"},
-  "score": ${result.score.toFixed(2)},
-  "latency_ms": ${result.latency},
-  "checked_at": "${new Date().toISOString()}"
-}`}
+{JSON.stringify(
+  {
+    status: result.status,
+    matchScore: result.matchScore,
+    authUrl: result.authUrl,
+    tokenId: result.tokenId,
+    ...(result.mock !== undefined ? { mock: result.mock } : {}),
+    latency_ms: result.latency_ms,
+  },
+  null,
+  2,
+)}
                       </pre>
                     </details>
                   </div>

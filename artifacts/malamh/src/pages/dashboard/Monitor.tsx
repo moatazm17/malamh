@@ -10,7 +10,7 @@ type ScanPhase = "idle" | "google" | "ai" | "verifying" | "done";
 const sourceMeta: Record<string, { label: string; cls: string }> = {
   google_lens: { label: "Google", cls: "badge-blue" },
   ai_platform: { label: "Lexica", cls: "badge-mh", },
-  demo: { label: "Demo", cls: "badge-mh" },
+  unknown: { label: "Source", cls: "badge-mh" },
 };
 
 const PHASE_LABEL: Record<Exclude<ScanPhase, "idle" | "done">, string> = {
@@ -119,8 +119,8 @@ export default function Monitor() {
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {results.map((result) => {
-              const src = result.source ?? "demo";
-              const m = sourceMeta[src] ?? sourceMeta.demo;
+              const src = result.source ?? "unknown";
+              const m = sourceMeta[src] ?? sourceMeta.unknown;
               const score = Math.round(result.matchScore * 100);
               const scoreColor = score >= 90 ? "var(--accent-red)" : score >= 70 ? "var(--accent-amber)" : "var(--accent-green)";
               return (
