@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Malamh — Facial Consent Registry"
+version = "1.0.0"
+id = "artifacts/malamh"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19785
+
+[services.development]
+run = "pnpm --filter @workspace/malamh run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/malamh", "run", "build" ]
+publicDir = "artifacts/malamh/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19785"
+BASE_PATH = "/"

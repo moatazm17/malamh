@@ -3,20 +3,40 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Malamh — Facial Consent Registry API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication
+  - name: faces
+    description: Face registration and management
+  - name: keys
+    description: API key management
+  - name: consent
+    description: Consent token management
+  - name: activity
+    description: Access logs and activity
+  - name: user
+    description: User profile and settings
+  - name: billing
+    description: Subscription and billing
+  - name: monitor
+    description: Web monitoring
+  - name: public
+    description: Public API for AI companies
+  - name: stats
+    description: Stats and summaries
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +44,1437 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ─── Auth ────────────────────────────────────────────────────────────────────
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout current session
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── User ────────────────────────────────────────────────────────────────────
+  /user/profile:
+    patch:
+      operationId: updateProfile
+      tags: [user]
+      summary: Update user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /user/delete:
+    delete:
+      operationId: deleteAccount
+      tags: [user]
+      summary: Delete account and all data
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /u/{username}:
+    get:
+      operationId: getPublicProfile
+      tags: [user]
+      summary: Get public profile (no PII)
+      parameters:
+        - in: path
+          name: username
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicProfile"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── Stats (wow endpoints) ────────────────────────────────────────────────────
+  /stats/overview:
+    get:
+      operationId: getStatsOverview
+      tags: [stats]
+      summary: Global registry stats (faces, users, checks)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsOverview"
+
+  /stats/dashboard:
+    get:
+      operationId: getDashboardStats
+      tags: [stats]
+      summary: Authenticated user dashboard summary
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── Faces ───────────────────────────────────────────────────────────────────
+  /internal/faces:
+    get:
+      operationId: listFaces
+      tags: [faces]
+      summary: List current user's registered faces
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Face"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createFace
+      tags: [faces]
+      summary: Register a new face
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFaceBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Face"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /internal/faces/{id}:
+    get:
+      operationId: getFace
+      tags: [faces]
+      summary: Get a face by ID
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Face"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateFace
+      tags: [faces]
+      summary: Update face consent level or label
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFaceBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Face"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteFace
+      tags: [faces]
+      summary: Delete a face (and remove from AWS if indexed)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /internal/faces/{id}/activity:
+    get:
+      operationId: getFaceActivity
+      tags: [faces]
+      summary: Get activity logs for a specific face
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AccessLog"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /internal/embed:
+    post:
+      operationId: embedImage
+      tags: [faces]
+      summary: Generate embedding from a single image (multipart)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmbedImageBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmbedResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /internal/match:
+    post:
+      operationId: matchFace
+      tags: [faces]
+      summary: Match face against registry (playground endpoint)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MatchFaceBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchResult"
+
+  /internal/consent-check:
+    post:
+      operationId: consentCheck
+      tags: [faces]
+      summary: AI Studio consent check — logs result, returns tokenId for polling
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsentCheckBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsentCheckResult"
+
+  # ─── API Keys ─────────────────────────────────────────────────────────────────
+  /keys:
+    get:
+      operationId: listApiKeys
+      tags: [keys]
+      summary: List user's API keys
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ApiKey"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createApiKey
+      tags: [keys]
+      summary: Create a new API key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateApiKeyBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKey"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /keys/{id}:
+    delete:
+      operationId: deleteApiKey
+      tags: [keys]
+      summary: Delete an API key
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── Consent Tokens ───────────────────────────────────────────────────────────
+  /consent/tokens:
+    get:
+      operationId: listConsentTokens
+      tags: [consent]
+      summary: List pending consent token requests for the current user
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConsentToken"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /consent/decision:
+    post:
+      operationId: consentDecision
+      tags: [consent]
+      summary: Approve or deny a consent token request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsentDecisionBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /consent/status/{token}:
+    get:
+      operationId: getConsentStatus
+      tags: [consent]
+      summary: Get consent token status (public polling endpoint)
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsentStatusResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /consent/approve/{token}:
+    get:
+      operationId: getConsentApprovalPage
+      tags: [consent]
+      summary: Get consent approval page data (face owner action)
+      parameters:
+        - in: path
+          name: token
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConsentApprovalData"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── Activity ─────────────────────────────────────────────────────────────────
+  /activity:
+    get:
+      operationId: listActivity
+      tags: [activity]
+      summary: List all access logs for the current user
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: number
+        - in: query
+          name: offset
+          schema:
+            type: number
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityListResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── Billing ──────────────────────────────────────────────────────────────────
+  /billing/subscription:
+    get:
+      operationId: getSubscription
+      tags: [billing]
+      summary: Get current user subscription
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Subscription"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /billing/subscribe:
+    post:
+      operationId: subscribe
+      tags: [billing]
+      summary: Subscribe to a plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscribeBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscribeResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /billing/portal:
+    post:
+      operationId: billingPortal
+      tags: [billing]
+      summary: Access billing portal or demo downgrade
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingPortalResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── Monitor ──────────────────────────────────────────────────────────────────
+  /monitor/scan:
+    post:
+      operationId: runMonitorScan
+      tags: [monitor]
+      summary: Run a web scan for face appearances (MONITOR+ plan)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanResponse"
+        "403":
+          description: Plan upgrade required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /monitor/results:
+    get:
+      operationId: listScanResults
+      tags: [monitor]
+      summary: List scan results for current user
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScanResult"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /monitor/results/{id}:
+    patch:
+      operationId: updateScanResult
+      tags: [monitor]
+      summary: Update scan result status
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateScanResultBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanResult"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─── Public API (for AI companies) ───────────────────────────────────────────
+  /v1/check-face:
+    post:
+      operationId: checkFace
+      tags: [public]
+      summary: Check face consent (requires Bearer API key)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckFaceBody"
+      responses:
+        "200":
+          description: Consent decision (no PII returned)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckFaceResponse"
+        "401":
+          description: Invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/check-face-with-token:
+    post:
+      operationId: checkFaceWithToken
+      tags: [public]
+      summary: Validate consent token and match face
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckFaceWithTokenBody"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckFaceResponse"
+        "401":
+          description: Invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/request-consent:
+    post:
+      operationId: requestConsent
+      tags: [public]
+      summary: Request consent for a face
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestConsentBody"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestConsentResponse"
+        "401":
+          description: Invalid API key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
+    # ─── Common ─────────────────────────────────────────────────────────────────
     HealthStatus:
       type: object
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required: [success]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required: [error]
+
+    # ─── Auth ────────────────────────────────────────────────────────────────────
+    RegisterBody:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        name:
+          type: string
+      required: [email, password]
+
+    LoginBody:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required: [email, password]
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        token:
+          type: string
+      required: [user]
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+          nullable: true
+        username:
+          type: string
+          nullable: true
+        image:
+          type: string
+          nullable: true
+        notifyOnScan:
+          type: boolean
+        notifyOnConsent:
+          type: boolean
+        notifyOnApiCheck:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        subscription:
+          $ref: "#/components/schemas/Subscription"
+          nullable: true
+      required: [id, email, notifyOnScan, notifyOnConsent, notifyOnApiCheck, createdAt]
+
+    UpdateProfileBody:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        username:
+          type: string
+          nullable: true
+        notifyOnScan:
+          type: boolean
+        notifyOnConsent:
+          type: boolean
+        notifyOnApiCheck:
+          type: boolean
+
+    PublicProfile:
+      type: object
+      properties:
+        username:
+          type: string
+        totalFaces:
+          type: number
+        blockedCount:
+          type: number
+        openCount:
+          type: number
+        tokenRequiredCount:
+          type: number
+        memberSince:
+          type: string
+          format: date-time
+      required: [username, totalFaces, blockedCount, openCount, tokenRequiredCount, memberSince]
+
+    # ─── Stats ───────────────────────────────────────────────────────────────────
+    StatsOverview:
+      type: object
+      properties:
+        totalFaces:
+          type: number
+        totalUsers:
+          type: number
+        totalChecks:
+          type: number
+        totalBlocked:
+          type: number
+      required: [totalFaces, totalUsers, totalChecks, totalBlocked]
+
+    DashboardStats:
+      type: object
+      properties:
+        facesRegistered:
+          type: number
+        totalChecks:
+          type: number
+        recentActivityCount:
+          type: number
+        blockedCount:
+          type: number
+        tokenRequiredCount:
+          type: number
+        openCount:
+          type: number
+      required: [facesRegistered, totalChecks, recentActivityCount, blockedCount, tokenRequiredCount, openCount]
+
+    # ─── Faces ───────────────────────────────────────────────────────────────────
+    Face:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        consentLevel:
+          type: string
+          enum: [BLOCKED, TOKEN_REQUIRED, OPEN]
+        label:
+          type: string
+          nullable: true
+        verified:
+          type: boolean
+        awsFaceId:
+          type: string
+          nullable: true
+        embedding:
+          type: string
+          nullable: true
+          description: JSON-stringified 512-d float array (only returned to owner)
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, userId, consentLevel, verified, createdAt, updatedAt]
+
+    CreateFaceBody:
+      type: object
+      properties:
+        embedding:
+          type: string
+          description: JSON-stringified 512-d float array
+        consentLevel:
+          type: string
+          enum: [BLOCKED, TOKEN_REQUIRED, OPEN]
+        label:
+          type: string
+          nullable: true
+        verified:
+          type: boolean
+      required: [embedding, consentLevel]
+
+    UpdateFaceBody:
+      type: object
+      properties:
+        consentLevel:
+          type: string
+          enum: [BLOCKED, TOKEN_REQUIRED, OPEN]
+        label:
+          type: string
+          nullable: true
+
+    EmbedImageBody:
+      type: object
+      properties:
+        imageBase64:
+          type: string
+          description: Base64-encoded image data
+        mimeType:
+          type: string
+          description: Image MIME type e.g. image/jpeg
+      required: [imageBase64]
+
+    EmbedResponse:
+      type: object
+      properties:
+        embedding:
+          type: string
+          description: JSON-stringified 512-d float array
+        mock:
+          type: boolean
+      required: [embedding]
+
+    MatchFaceBody:
+      type: object
+      properties:
+        imageBase64:
+          type: string
+        requesterName:
+          type: string
+        purpose:
+          type: string
+      required: [imageBase64]
+
+    MatchResult:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [blocked, open, token_required, no_match]
+        matchScore:
+          type: number
+          nullable: true
+        authUrl:
+          type: string
+          nullable: true
+        tokenId:
+          type: string
+          nullable: true
+        queryEmbeddingSample:
+          type: array
+          items:
+            type: number
+          nullable: true
+        matchedEmbeddingSample:
+          type: array
+          items:
+            type: number
+          nullable: true
+      required: [status]
+
+    ConsentCheckBody:
+      type: object
+      properties:
+        imageBase64:
+          type: string
+        prompt:
+          type: string
+        requesterName:
+          type: string
+      required: [imageBase64]
+
+    ConsentCheckResult:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [blocked, open, token_required, no_match]
+        matchScore:
+          type: number
+          nullable: true
+        authUrl:
+          type: string
+          nullable: true
+        tokenId:
+          type: string
+          nullable: true
+        logId:
+          type: string
+          nullable: true
+      required: [status]
+
+    # ─── API Keys ─────────────────────────────────────────────────────────────────
+    ApiKey:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        key:
+          type: string
+          description: Full key only shown once on creation, otherwise masked
+        active:
+          type: boolean
+        usageCount:
+          type: number
+        lastUsed:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, key, active, usageCount, createdAt]
+
+    CreateApiKeyBody:
+      type: object
+      properties:
+        name:
+          type: string
+      required: [name]
+
+    # ─── Consent Tokens ───────────────────────────────────────────────────────────
+    ConsentToken:
+      type: object
+      properties:
+        id:
+          type: string
+        faceId:
+          type: string
+        requesterName:
+          type: string
+        purpose:
+          type: string
+          nullable: true
+        token:
+          type: string
+        approved:
+          type: boolean
+        used:
+          type: boolean
+        expiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, faceId, requesterName, token, approved, used, expiresAt, createdAt]
+
+    ConsentDecisionBody:
+      type: object
+      properties:
+        token:
+          type: string
+        decision:
+          type: string
+          enum: [approve, deny]
+      required: [token, decision]
+
+    ConsentStatusResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, approved, denied, expired]
+      required: [status]
+
+    ConsentApprovalData:
+      type: object
+      properties:
+        token:
+          $ref: "#/components/schemas/ConsentToken"
+        faceLabel:
+          type: string
+          nullable: true
+        isOwner:
+          type: boolean
+      required: [token, isOwner]
+
+    # ─── Activity ─────────────────────────────────────────────────────────────────
+    AccessLog:
+      type: object
+      properties:
+        id:
+          type: string
+        faceId:
+          type: string
+          nullable: true
+        requesterName:
+          type: string
+        requesterIp:
+          type: string
+        action:
+          type: string
+          enum: [checked, blocked, allowed, token_issued, token_used, no_match]
+        matchScore:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, requesterName, requesterIp, action, matchScore, createdAt]
+
+    ActivityListResponse:
+      type: object
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccessLog"
+        total:
+          type: number
+      required: [logs, total]
+
+    # ─── Billing ──────────────────────────────────────────────────────────────────
+    Subscription:
+      type: object
+      properties:
+        id:
+          type: string
+        plan:
+          type: string
+          enum: [FREE, MONITOR, MONITOR_PRO]
+        status:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, plan, status, createdAt]
+
+    SubscribeBody:
+      type: object
+      properties:
+        plan:
+          type: string
+          enum: [MONITOR, MONITOR_PRO]
+      required: [plan]
+
+    SubscribeResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        checkoutUrl:
+          type: string
+          nullable: true
+        plan:
+          type: string
+          nullable: true
+        message:
+          type: string
+          nullable: true
+      required: [success]
+
+    BillingPortalResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        portalUrl:
+          type: string
+          nullable: true
+        message:
+          type: string
+          nullable: true
+      required: [success]
+
+    # ─── Monitor ──────────────────────────────────────────────────────────────────
+    ScanResult:
+      type: object
+      properties:
+        id:
+          type: string
+        sourceUrl:
+          type: string
+        sourceDomain:
+          type: string
+        pageTitle:
+          type: string
+          nullable: true
+        matchScore:
+          type: number
+        screenshotUrl:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [NEW, SEEN, TAKEDOWN_SENT, RESOLVED, IGNORED]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, sourceUrl, sourceDomain, matchScore, status, createdAt, updatedAt]
+
+    ScanResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        newResults:
+          type: number
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScanResult"
+      required: [success, newResults, results]
+
+    UpdateScanResultBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [NEW, SEEN, TAKEDOWN_SENT, RESOLVED, IGNORED]
+      required: [status]
+
+    # ─── Public API ───────────────────────────────────────────────────────────────
+    CheckFaceBody:
+      type: object
+      properties:
+        imageBase64:
+          type: string
+          description: Base64-encoded image
+        requesterName:
+          type: string
+        purpose:
+          type: string
+      required: [imageBase64]
+
+    CheckFaceResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [blocked, open, token_required, no_match]
+        matchScore:
+          type: number
+          nullable: true
+        authUrl:
+          type: string
+          nullable: true
+          description: Consent approval URL (only for token_required)
+      required: [status]
+
+    CheckFaceWithTokenBody:
+      type: object
+      properties:
+        imageBase64:
+          type: string
+        consentToken:
+          type: string
+      required: [imageBase64, consentToken]
+
+    RequestConsentBody:
+      type: object
+      properties:
+        faceId:
+          type: string
+        requesterName:
+          type: string
+        purpose:
+          type: string
+      required: [faceId, requesterName]
+
+    RequestConsentResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        authUrl:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+      required: [token, authUrl, expiresAt]
