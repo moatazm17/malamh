@@ -95,9 +95,27 @@ lib/
 - `SESSION_SECRET` — JWT signing secret (set in Replit secrets)
 - `DATABASE_URL` — PostgreSQL connection string (auto-provided by Replit)
 
+## Webhooks
+
+Real-time HTTP POST notifications via HMAC-SHA256 signed payloads.
+
+**DB table**: `webhooks` — id, userId, url, secret, events[], active, description, lastDeliveredAt
+
+**Events**:
+- `face.blocked` — consent check blocked
+- `face.allowed` — consent check allowed
+- `consent.token_issued` — TOKEN_REQUIRED face, token created
+- `consent.approved` — user approved a token
+- `consent.denied` — user denied a token
+
+**Routes**: GET/POST `/api/webhooks`, PATCH/DELETE `/api/webhooks/:id`, POST `/api/webhooks/:id/test`, POST `/api/webhooks/:id/rotate-secret`
+
+**Delivery**: `X-Malamh-Signature: sha256=<hmac>` header, 10s timeout, logs failures without blocking request
+
+**Frontend page**: `/dashboard/webhooks` — create, edit, toggle active, send test, rotate secret, delete
+
 ## Future Work
 
-- AWS Rekognition integration for real face matching (replace mock)
 - Stripe billing integration
 - Email notifications (notify on scan, consent, API check)
-- Webhook events for consent level changes
+- Webhook delivery log / retry history

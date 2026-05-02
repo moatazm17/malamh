@@ -5,3 +5,4 @@ export * from "./consent-tokens";
 export * from "./access-logs";
 export * from "./subscriptions";
 export * from "./scan-results";
+export * from "./webhooks";

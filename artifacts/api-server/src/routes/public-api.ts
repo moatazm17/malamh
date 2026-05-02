@@ -8,6 +8,7 @@ import { mockEmbedding, matchAgainstRegistry, isMockMode } from "../lib/face-ser
 import { searchFacesByImage } from "../lib/rekognition";
 import { cuid, generateToken } from "../lib/id";
 import { logger } from "../lib/logger";
+import { fireWebhook } from "../lib/webhook-service";
 
 const router = Router();
 
@@ -119,11 +120,13 @@ router.post("/v1/check-face", async (req, res) => {
   }
 
   if (match.consentLevel === "BLOCKED") {
+    if (match.userId) fireWebhook(match.userId, "face.blocked", { faceId: match.faceId, requesterName, matchScore: match.score });
     res.json({ status: "blocked", matchScore: match.score, authUrl: null });
     return;
   }
 
   if (match.consentLevel === "OPEN") {
+    if (match.userId) fireWebhook(match.userId, "face.allowed", { faceId: match.faceId, requesterName, matchScore: match.score });
     res.json({ status: "open", matchScore: match.score, authUrl: null });
     return;
   }
@@ -140,7 +143,9 @@ router.post("/v1/check-face", async (req, res) => {
       token,
       expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
     });
-    res.json({ status: "token_required", matchScore: match.score, authUrl: `${getBaseUrl(req)}/consent/approve/${token}` });
+    const authUrl = `${getBaseUrl(req)}/consent/approve/${token}`;
+    fireWebhook(match.userId, "consent.token_issued", { faceId: match.faceId, requesterName, purpose: purpose ?? null, authUrl });
+    res.json({ status: "token_required", matchScore: match.score, authUrl });
   }
 });
 

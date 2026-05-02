@@ -10,6 +10,7 @@ import activityRouter from "./activity";
 import billingRouter from "./billing";
 import monitorRouter from "./monitor";
 import publicApiRouter from "./public-api";
+import webhooksRouter from "./webhooks";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(activityRouter);
 router.use(billingRouter);
 router.use(monitorRouter);
 router.use(publicApiRouter);
+router.use(webhooksRouter);
 
 export default router;

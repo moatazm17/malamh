@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { requireSession } from "../lib/auth";
 import { cuid, generateToken } from "../lib/id";
+import { fireWebhook } from "../lib/webhook-service";
 
 const router = Router();
 
@@ -45,9 +46,19 @@ router.post("/consent/decision", requireSession, async (req, res) => {
     return;
   }
 
+  const approved = parsed.data.decision === "approve";
+
   await db.update(consentTokensTable)
-    .set({ approved: parsed.data.decision === "approve" })
+    .set({ approved })
     .where(eq(consentTokensTable.id, consentToken.id));
+
+  // Fire webhook for consent decision
+  fireWebhook(user.id, approved ? "consent.approved" : "consent.denied", {
+    faceId: consentToken.faceId,
+    requesterName: consentToken.requesterName,
+    purpose: consentToken.purpose ?? null,
+    token: consentToken.token,
+  });
 
   res.json({ success: true, message: `Consent ${parsed.data.decision}d` });
 });
@@ -63,7 +74,7 @@ router.get("/consent/status/:token", async (req, res) => {
   }
 
   if (consentToken.used) {
-    res.json({ status: "approved" }); // used implies was approved
+    res.json({ status: "approved" });
     return;
   }
 
@@ -77,7 +88,6 @@ router.get("/consent/status/:token", async (req, res) => {
     return;
   }
 
-  // Check if denied (approved = false AND explicitly set — we use null as pending)
   res.json({ status: "pending" });
 });
 
@@ -93,13 +103,10 @@ router.get("/consent/approve/:token", async (req, res) => {
 
   const [face] = await db.select().from(facesTable).where(eq(facesTable.id, consentToken.faceId)).limit(1);
 
-  // Check if caller is owner (pass user context if authenticated)
-  const isOwner = false; // Frontend handles this via useGetMe
-
   res.json({
     token: consentToken,
     faceLabel: face?.label || null,
-    isOwner,
+    isOwner: false,
   });
 });
 

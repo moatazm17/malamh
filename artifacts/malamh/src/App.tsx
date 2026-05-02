@@ -20,6 +20,7 @@ import ApiTester from "@/pages/dashboard/ApiTester";
 import Monitor from "@/pages/dashboard/Monitor";
 import Settings from "@/pages/dashboard/Settings";
 import Activity from "@/pages/dashboard/Activity";
+import Webhooks from "@/pages/dashboard/Webhooks";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -51,6 +52,7 @@ function Router() {
       <Route path="/dashboard/monitor" component={Monitor} />
       <Route path="/dashboard/settings" component={Settings} />
       <Route path="/dashboard/activity" component={Activity} />
+      <Route path="/dashboard/webhooks" component={Webhooks} />
       <Route component={NotFound} />
     </Switch>
   );

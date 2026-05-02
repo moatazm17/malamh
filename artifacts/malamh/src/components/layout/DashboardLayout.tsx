@@ -9,7 +9,8 @@ import {
   Settings, 
   LogOut,
   ShieldAlert,
-  Loader2
+  Loader2,
+  Webhook,
 } from "lucide-react";
 import { useEffect } from "react";
 
@@ -47,6 +48,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     { href: "/dashboard/activity", label: "Activity", icon: Activity },
     { href: "/dashboard/api-keys", label: "API Keys", icon: Key },
     { href: "/dashboard/api-test", label: "API Tester", icon: TerminalSquare },
+    { href: "/dashboard/webhooks", label: "Webhooks", icon: Webhook },
     { href: "/dashboard/settings", label: "Settings", icon: Settings },
   ];
 
