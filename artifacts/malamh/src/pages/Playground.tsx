@@ -2,13 +2,16 @@ import { useRef, useState, useEffect } from "react";
 import { PublicLayout } from "@/components/layout/PublicLayout";
 import { Loader2, Shield, Upload, Camera, X, ScanFace } from "lucide-react";
 
-type Status = "open" | "blocked" | "token_required" | "no_match";
+type Status = "open" | "blocked" | "token_required" | "no_match" | "approved" | "denied" | "expired";
 
 const statusMeta: Record<Status, { label: string; badge: string; color: string }> = {
   open: { label: "OPEN", badge: "badge-open", color: "var(--accent-green)" },
   blocked: { label: "BLOCKED", badge: "badge-blocked", color: "var(--accent-red)" },
-  token_required: { label: "TOKEN REQUIRED", badge: "badge-token", color: "var(--accent-amber)" },
+  token_required: { label: "TOKEN REQUIRED · WAITING", badge: "badge-token", color: "var(--accent-amber)" },
   no_match: { label: "NO MATCH", badge: "badge-mh", color: "var(--text-muted)" },
+  approved: { label: "CONSENT APPROVED", badge: "badge-open", color: "var(--accent-green)" },
+  denied: { label: "CONSENT DENIED", badge: "badge-blocked", color: "var(--accent-red)" },
+  expired: { label: "TOKEN EXPIRED", badge: "badge-mh", color: "var(--text-muted)" },
 };
 
 function ScoreRing({ value, color }: { value: number; color: string }) {
@@ -85,6 +88,31 @@ export default function Playground() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPolling = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+
+  useEffect(() => () => stopPolling(), []);
+
+  const startPolling = (tokenId: string) => {
+    stopPolling();
+    pollRef.current = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/consent/status/${tokenId}`);
+        if (!r.ok) return;
+        const data = await r.json();
+        if (data.status === "approved" || data.status === "denied" || data.status === "expired") {
+          stopPolling();
+          setResult((prev) => (prev ? { ...prev, status: data.status as Status } : prev));
+        }
+      } catch { /* keep polling */ }
+    }, 2000);
+  };
 
   const loadFile = async (file: File) => {
     setError(null);
@@ -105,6 +133,7 @@ export default function Playground() {
   };
 
   const reset = () => {
+    stopPolling();
     setPhotoSrc(null);
     setImageBase64(null);
     setResult(null);
@@ -113,6 +142,7 @@ export default function Playground() {
 
   const runCheck = async () => {
     if (!imageBase64) return;
+    stopPolling();
     setLoading(true);
     setResult(null);
     setError(null);
@@ -137,6 +167,9 @@ export default function Playground() {
         mock: data.mock,
         latency_ms,
       });
+      if (data.status === "token_required" && data.tokenId) {
+        startPolling(data.tokenId);
+      }
     } catch (err: any) {
       setError(err?.message ?? "Request failed");
     } finally {
@@ -247,7 +280,12 @@ export default function Playground() {
                     <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
                       {result.latency_ms} ms{result.mock ? " · mock matcher" : ""}
                     </p>
-                    {result.authUrl && (
+                    {result.status === "token_required" && (
+                      <p className="text-xs mt-3 inline-flex items-center gap-2" style={{ color: "var(--text-muted)" }}>
+                        <Loader2 className="w-3 h-3 animate-spin" /> Waiting for consent decision…
+                      </p>
+                    )}
+                    {result.authUrl && result.status === "token_required" && (
                       <a href={result.authUrl} target="_blank" rel="noreferrer" className="btn-mh btn-mh-ghost text-xs mt-4 inline-flex">
                         Open consent request →
                       </a>
