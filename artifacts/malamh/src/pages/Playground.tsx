@@ -235,7 +235,7 @@ export default function Playground() {
               )}
               {result && (() => {
                 const meta = statusMeta[result.status];
-                const score = result.matchScore != null ? result.matchScore : 0;
+                const score = result.matchScore != null ? Math.round(result.matchScore * 100) : 0;
                 return (
                   <div className="text-center w-full anim-scale-in">
                     {result.matchScore != null ? (
