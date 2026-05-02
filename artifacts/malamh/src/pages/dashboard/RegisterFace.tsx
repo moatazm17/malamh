@@ -56,21 +56,42 @@ export default function RegisterFace() {
       return;
     }
 
-    // Step 1: embed the image to get the vector
+    // Step 1: detect + index the image (AWS) or generate mock embedding
+    const rawBase64 = imageData.split(",")[1] || imageData;
     embedImage.mutate(
-      { data: { imageBase64: imageData.split(",")[1] || imageData, mimeType: "image/jpeg" } },
+      { data: { imageBase64: rawBase64, mimeType: "image/jpeg" } },
       {
         onSuccess: (embedResult) => {
-          // Step 2: register the face with the embedding
+          // Step 2: register the face record
+          // In AWS mode, embedResult.embedding is the awsFaceId string.
+          // In mock mode, embedResult.embedding is already a JSON-stringified vector.
+          // Either way, pass it verbatim — do NOT re-stringify.
           createFace.mutate(
-            { data: { embedding: JSON.stringify(embedResult.embedding), consentLevel, label: label || null } },
+            {
+              data: {
+                embedding: embedResult.embedding,
+                consentLevel,
+                label: label || null,
+                awsFaceId: embedResult.awsFaceId ?? undefined,
+              },
+            },
             {
               onSuccess: (face) => setDone(face.id),
-              onError: () => toast({ title: "Registration failed", variant: "destructive" }),
+              onError: (err: any) =>
+                toast({
+                  title: "Registration failed",
+                  description: err?.message ?? "Could not save face record.",
+                  variant: "destructive",
+                }),
             }
           );
         },
-        onError: () => toast({ title: "Image processing failed", variant: "destructive" }),
+        onError: (err: any) =>
+          toast({
+            title: "Image processing failed",
+            description: err?.message ?? "No face detected or image quality too low.",
+            variant: "destructive",
+          }),
       }
     );
   };

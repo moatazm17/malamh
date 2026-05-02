@@ -31,10 +31,26 @@ export function getCollectionId(): string {
 
 /**
  * Compress image to JPEG, max 5MB, max 1920x1080.
- * Falls back to lower quality if still too large.
+ * Falls back to the original bytes if sharp cannot decode the format
+ * (sharp supports JPEG, PNG, WebP, AVIF, TIFF, GIF, SVG; AWS Rekognition
+ * accepts JPEG, PNG, and WebP — if both fail the caller will surface the error).
  */
 export async function compressImage(imageBytes: Buffer): Promise<Buffer> {
-  const metadata = await sharp(imageBytes).metadata();
+  if (imageBytes.length === 0) {
+    throw new Error("Image buffer is empty");
+  }
+
+  let metadata: Awaited<ReturnType<typeof sharp.prototype.metadata>>;
+  try {
+    metadata = await sharp(imageBytes).metadata();
+  } catch {
+    // Sharp cannot read this format — return raw bytes and let AWS decide
+    if (imageBytes.length <= MAX_IMAGE_BYTES) return imageBytes;
+    throw new Error(
+      `Image format not supported by the compression pipeline and is too large (${Math.round(imageBytes.length / 1024 / 1024)}MB, max 5MB).`,
+    );
+  }
+
   const needsResize =
     (metadata.width ?? 0) > 1920 || (metadata.height ?? 0) > 1080;
 

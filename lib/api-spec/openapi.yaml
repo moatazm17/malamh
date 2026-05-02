@@ -1079,7 +1079,7 @@ components:
       properties:
         embedding:
           type: string
-          description: JSON-stringified 512-d float array
+          description: JSON-stringified 512-d float array or AWS FaceId in AWS mode
         consentLevel:
           type: string
           enum: [BLOCKED, TOKEN_REQUIRED, OPEN]
@@ -1088,6 +1088,9 @@ components:
           nullable: true
         verified:
           type: boolean
+        awsFaceId:
+          type: string
+          description: AWS Rekognition FaceId (returned by /internal/embed in AWS mode)
       required: [embedding, consentLevel]
 
     UpdateFaceBody:
@@ -1116,9 +1119,18 @@ components:
       properties:
         embedding:
           type: string
-          description: JSON-stringified 512-d float array
+          description: JSON-stringified vector (mock) or AWS FaceId (AWS mode)
         mock:
           type: boolean
+        awsFaceId:
+          type: string
+          description: AWS Rekognition FaceId, present only in AWS mode
+        faceCount:
+          type: integer
+          description: Number of faces detected in the image
+        confidence:
+          type: number
+          description: Detection confidence 0–100
       required: [embedding]
 
     MatchFaceBody:

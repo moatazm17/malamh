@@ -1,11 +1,8 @@
 /**
  * Face embedding and matching service.
- * Primary: AWS Rekognition (when configured)
- * Fallback: Deterministic mock embeddings for demo mode
+ * Primary: AWS Rekognition (when AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY + AWS_REGION are set)
+ * Fallback: Deterministic mock embeddings for demo / local dev
  */
-
-const MATCH_THRESHOLD = parseFloat(process.env.MATCH_THRESHOLD || "0.55");
-const EMBEDDING_DIM = 512;
 
 export function isAwsEnabled(): boolean {
   return !!(
@@ -19,32 +16,18 @@ export function isMockMode(): boolean {
   return process.env.USE_MOCK_FACES === "true" || !isAwsEnabled();
 }
 
+const EMBEDDING_DIM = 512;
+const MATCH_THRESHOLD = parseFloat(process.env.MATCH_THRESHOLD || "0.55");
+
 /**
  * Generate a deterministic mock embedding from image bytes.
  * Uses a simple hash to produce consistent results for the same image.
+ * Only used when AWS is not configured.
  */
 export function mockEmbedding(imageBytes: Buffer): number[] {
   const embedding = new Array(EMBEDDING_DIM).fill(0);
   for (let i = 0; i < imageBytes.length && i < EMBEDDING_DIM * 4; i++) {
     embedding[i % EMBEDDING_DIM] += imageBytes[i] / 255.0;
-  }
-  // L2-normalize
-  const norm = Math.sqrt(embedding.reduce((sum, v) => sum + v * v, 0)) || 1;
-  return embedding.map((v) => v / norm);
-}
-
-/**
- * Generate a random-ish but seeded embedding for demo purposes.
- */
-export function seededEmbedding(seed: string): number[] {
-  const embedding = new Array(EMBEDDING_DIM).fill(0);
-  let hash = 5381;
-  for (let i = 0; i < seed.length; i++) {
-    hash = (hash * 33) ^ seed.charCodeAt(i);
-  }
-  for (let i = 0; i < EMBEDDING_DIM; i++) {
-    hash = (hash * 1664525 + 1013904223) & 0xffffffff;
-    embedding[i] = (hash & 0xffff) / 0xffff - 0.5;
   }
   const norm = Math.sqrt(embedding.reduce((sum, v) => sum + v * v, 0)) || 1;
   return embedding.map((v) => v / norm);
@@ -67,6 +50,7 @@ export function cosineSimilarity(a: number[], b: number[]): number {
 export interface MatchCandidate {
   id: string;
   embedding: string;
+  awsFaceId: string | null;
   consentLevel: string;
   userId: string;
 }
@@ -79,6 +63,10 @@ export interface MatchResult {
   score: number;
 }
 
+/**
+ * Mock-mode matching: cosine similarity across all stored embeddings.
+ * Only called when AWS is not configured.
+ */
 export function matchAgainstRegistry(
   queryEmbedding: number[],
   candidates: MatchCandidate[],

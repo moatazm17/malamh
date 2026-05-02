@@ -190,10 +190,18 @@ export const ListFacesResponse = zod.array(ListFacesResponseItem);
  * @summary Register a new face
  */
 export const CreateFaceBody = zod.object({
-  embedding: zod.string().describe("JSON-stringified 512-d float array"),
+  embedding: zod
+    .string()
+    .describe("JSON-stringified 512-d float array or AWS FaceId in AWS mode"),
   consentLevel: zod.enum(["BLOCKED", "TOKEN_REQUIRED", "OPEN"]),
   label: zod.string().nullish(),
   verified: zod.boolean().optional(),
+  awsFaceId: zod
+    .string()
+    .optional()
+    .describe(
+      "AWS Rekognition FaceId (returned by \/internal\/embed in AWS mode)",
+    ),
 });
 
 /**
@@ -294,8 +302,19 @@ export const EmbedImageBody = zod.object({
 });
 
 export const EmbedImageResponse = zod.object({
-  embedding: zod.string().describe("JSON-stringified 512-d float array"),
+  embedding: zod
+    .string()
+    .describe("JSON-stringified vector (mock) or AWS FaceId (AWS mode)"),
   mock: zod.boolean().optional(),
+  awsFaceId: zod
+    .string()
+    .optional()
+    .describe("AWS Rekognition FaceId, present only in AWS mode"),
+  faceCount: zod
+    .number()
+    .optional()
+    .describe("Number of faces detected in the image"),
+  confidence: zod.number().optional().describe("Detection confidence 0–100"),
 });
 
 /**

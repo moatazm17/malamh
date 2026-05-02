@@ -6,6 +6,12 @@ import { z } from "zod";
 import { requireSession } from "../lib/auth";
 import { cuid } from "../lib/id";
 import { mockEmbedding, isMockMode } from "../lib/face-service";
+import {
+  detectFaces,
+  indexFace,
+  deleteFaceFromCollection,
+} from "../lib/rekognition";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -14,6 +20,7 @@ const createFaceSchema = z.object({
   consentLevel: z.enum(["BLOCKED", "TOKEN_REQUIRED", "OPEN"]),
   label: z.string().nullable().optional(),
   verified: z.boolean().optional(),
+  awsFaceId: z.string().optional(),
 });
 
 const updateFaceSchema = z.object({
@@ -35,12 +42,13 @@ router.post("/internal/faces", requireSession, async (req, res) => {
     return;
   }
 
-  const { embedding, consentLevel, label, verified } = parsed.data;
+  const { embedding, consentLevel, label, verified, awsFaceId } = parsed.data;
 
   const face = await db.insert(facesTable).values({
     id: cuid(),
     userId: user.id,
     embedding,
+    awsFaceId: awsFaceId ?? null,
     consentLevel,
     label: label ?? null,
     verified: verified ?? false,
@@ -59,7 +67,7 @@ router.get("/internal/faces/:id", requireSession, async (req, res) => {
     res.status(404).json({ error: "NotFound", message: "Face not found" });
     return;
   }
-  res.json(face); // Return full embedding to owner
+  res.json(sanitizeFace(face));
 });
 
 router.patch("/internal/faces/:id", requireSession, async (req, res) => {
@@ -98,7 +106,15 @@ router.delete("/internal/faces/:id", requireSession, async (req, res) => {
     return;
   }
 
-  // TODO: if existing.awsFaceId, delete from AWS Rekognition
+  // Remove from AWS Rekognition collection if indexed
+  if (existing.awsFaceId && !isMockMode()) {
+    try {
+      await deleteFaceFromCollection(existing.awsFaceId);
+    } catch (err) {
+      logger.warn({ err, awsFaceId: existing.awsFaceId }, "Failed to delete face from Rekognition collection");
+    }
+  }
+
   await db.delete(facesTable).where(eq(facesTable.id, req.params.id));
   res.json({ success: true, message: "Face deleted" });
 });
@@ -118,22 +134,71 @@ router.get("/internal/faces/:id/activity", requireSession, async (req, res) => {
   res.json(logs);
 });
 
-// Embed endpoint — returns mock embedding in demo mode
+/**
+ * POST /internal/embed
+ *
+ * AWS mode:  DetectFaces (liveness) → IndexFaces → returns { awsFaceId, embedding: awsFaceId, mock: false }
+ * Mock mode: deterministic vector hash → returns { embedding: JSON vector, mock: true }
+ *
+ * The returned `embedding` value is stored verbatim in the faces table; in AWS mode the
+ * `awsFaceId` field is also included so the caller can pass it through to POST /internal/faces.
+ */
 router.post("/internal/embed", requireSession, async (req, res) => {
-  const { imageBase64 } = req.body;
+  const { imageBase64, label } = req.body;
   if (!imageBase64) {
     res.status(400).json({ error: "BadRequest", message: "imageBase64 required" });
     return;
   }
 
   const imageBytes = Buffer.from(imageBase64.replace(/^data:[^,]+,/, ""), "base64");
-  const embedding = mockEmbedding(imageBytes);
 
-  res.json({ embedding: JSON.stringify(embedding), mock: isMockMode() });
+  if (!isMockMode()) {
+    // --- AWS Rekognition path ---
+    try {
+      const detection = await detectFaces(imageBytes);
+
+      if (detection.faceCount === 0) {
+        res.status(422).json({
+          error: "NoFaceDetected",
+          message: "No face detected in the image. Please use a clear, well-lit, front-facing photo.",
+        });
+        return;
+      }
+
+      if (detection.faceCount > 1) {
+        res.status(422).json({
+          error: "MultipleFacesDetected",
+          message: "Multiple faces detected. Please upload a photo with only one person.",
+        });
+        return;
+      }
+
+      // Use a temp ID as externalImageId; will be replaced after face record is created.
+      // We index with a provisional ID — the caller must call POST /internal/faces immediately after.
+      const tempId = cuid();
+      const { awsFaceId, confidence } = await indexFace(imageBytes, tempId);
+
+      res.json({
+        embedding: awsFaceId,  // stored in faces.embedding for backwards compat
+        awsFaceId,
+        mock: false,
+        faceCount: detection.faceCount,
+        confidence,
+      });
+    } catch (err: any) {
+      logger.error({ err }, "Rekognition embed failed");
+      res.status(500).json({ error: "RekognitionError", message: err.message ?? "Face indexing failed" });
+    }
+    return;
+  }
+
+  // --- Mock fallback path ---
+  const embedding = mockEmbedding(imageBytes);
+  res.json({ embedding: JSON.stringify(embedding), mock: true });
 });
 
 function sanitizeFace(face: any) {
-  // Return face without raw embedding to non-owners (keep for GET by id)
+  // Strip the raw embedding from list/detail responses
   const { embedding, ...rest } = face;
   return rest;
 }

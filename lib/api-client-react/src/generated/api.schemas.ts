@@ -131,11 +131,13 @@ export const CreateFaceBodyConsentLevel = {
 } as const;
 
 export interface CreateFaceBody {
-  /** JSON-stringified 512-d float array */
+  /** JSON-stringified 512-d float array or AWS FaceId in AWS mode */
   embedding: string;
   consentLevel: CreateFaceBodyConsentLevel;
   label?: string | null;
   verified?: boolean;
+  /** AWS Rekognition FaceId (returned by /internal/embed in AWS mode) */
+  awsFaceId?: string;
 }
 
 export type UpdateFaceBodyConsentLevel =
@@ -160,9 +162,15 @@ export interface EmbedImageBody {
 }
 
 export interface EmbedResponse {
-  /** JSON-stringified 512-d float array */
+  /** JSON-stringified vector (mock) or AWS FaceId (AWS mode) */
   embedding: string;
   mock?: boolean;
+  /** AWS Rekognition FaceId, present only in AWS mode */
+  awsFaceId?: string;
+  /** Number of faces detected in the image */
+  faceCount?: number;
+  /** Detection confidence 0–100 */
+  confidence?: number;
 }
 
 export interface MatchFaceBody {
