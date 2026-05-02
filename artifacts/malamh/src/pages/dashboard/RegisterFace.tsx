@@ -127,7 +127,7 @@ export default function RegisterFace() {
     const frameData = captureFrameFromVideo(video);
     const b64 = frameData.split(",")[1] || frameData;
     try {
-      const res = await apiFetch("/api/internal/liveness-frame", { method: "POST", body: JSON.stringify({ imageBase64: b64 }) });
+      const res = await apiFetch("/internal/liveness-frame", { method: "POST", body: JSON.stringify({ imageBase64: b64 }) });
       if (!res.ok) return;
       const data = await res.json();
       if (!data.faceDetected) return;
@@ -165,7 +165,7 @@ export default function RegisterFace() {
     const primary = frames[0];
     const b64 = primary.split(",")[1] || primary;
     try {
-      const res = await apiFetch("/api/internal/embed", { method: "POST", body: JSON.stringify({ imageBase64: b64 }) });
+      const res = await apiFetch("/internal/embed", { method: "POST", body: JSON.stringify({ imageBase64: b64 }) });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         toast({ title: "Encoding failed", description: err.message ?? "Could not process image", variant: "destructive" });
@@ -193,7 +193,7 @@ export default function RegisterFace() {
     setStep("encoding");
     const b64 = uploadedImage.split(",")[1] || uploadedImage;
     try {
-      const res = await apiFetch("/api/internal/embed", { method: "POST", body: JSON.stringify({ imageBase64: b64 }) });
+      const res = await apiFetch("/internal/embed", { method: "POST", body: JSON.stringify({ imageBase64: b64 }) });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         toast({ title: "Encoding failed", description: err.message ?? "Could not process image", variant: "destructive" });
@@ -213,7 +213,7 @@ export default function RegisterFace() {
     const embedding = awsFaceId ?? "mock";
     setEncoding(true);
     try {
-      const res = await apiFetch("/api/internal/faces", {
+      const res = await apiFetch("/internal/faces", {
         method: "POST",
         body: JSON.stringify({
           embedding, consentLevel, label: label || null,
