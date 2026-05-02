@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api";
 import {
   Upload, Camera, Loader2, CheckCircle, ShieldOff, ShieldAlert, ShieldCheck,
-  SmilePlus, RotateCcw, Eye, ArrowLeft, Smile, ArrowLeftRight,
+  SmilePlus, RotateCcw, Eye, ArrowLeft, ArrowRight, User, Smile, ArrowLeftRight,
 } from "lucide-react";
 
 type ConsentLevel = "OPEN" | "BLOCKED" | "TOKEN_REQUIRED";
@@ -74,7 +74,11 @@ export default function RegisterFace() {
 
   const [capturedFrames, setCapturedFrames] = useState<string[]>([]);
   const [captureStep, setCaptureStep] = useState(0);
-  const CAPTURE_INSTRUCTIONS = ["Look straight at the camera", "Turn slightly to the left", "Turn slightly to the right"];
+  const CAPTURE_POSES: { title: string; hint: string; Icon: any }[] = [
+    { title: "Look straight at the camera", hint: "Face forward, neutral expression. Keep your eyes on the lens.", Icon: User },
+    { title: "Turn slightly to your left", hint: "Just a small turn — about 15°. Keep both eyes visible.", Icon: ArrowLeft },
+    { title: "Turn slightly to your right", hint: "Same gentle turn the other way. Keep both eyes visible.", Icon: ArrowRight },
+  ];
 
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -135,8 +139,8 @@ export default function RegisterFace() {
       setPassed((prev) => {
         const next = { ...prev };
         if (!prev.smile && data.smile && data.smileConfidence > 55) next.smile = true;
-        if (!prev.left && data.yaw < -12) next.left = true;
-        if (!prev.right && data.yaw > 12) next.right = true;
+        if (!prev.left && data.yaw > 12) next.left = true;
+        if (!prev.right && data.yaw < -12) next.right = true;
         return next;
       });
     } catch { /* ignore */ }
@@ -362,8 +366,21 @@ export default function RegisterFace() {
           <div className="mb-6">
             <div className="section-label mb-2">Step 2 of 3</div>
             <h1 className="headline-section text-3xl">Photo {captureStep + 1} of 3</h1>
-            <p className="text-base mt-2" style={{ color: "var(--text-secondary)" }}>{CAPTURE_INSTRUCTIONS[captureStep]}</p>
           </div>
+          {(() => {
+            const pose = CAPTURE_POSES[captureStep];
+            return (
+              <div className="glass-card-elevated p-5 mb-6 flex items-center gap-4" style={{ borderColor: "var(--accent-blue)", boxShadow: "0 0 40px var(--accent-blue-glow)" }}>
+                <div className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "var(--accent-blue-glow)", border: "1px solid var(--accent-blue)" }}>
+                  <pose.Icon className="w-7 h-7" style={{ color: "var(--accent-blue)" }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>{pose.title}</p>
+                  <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>{pose.hint}</p>
+                </div>
+              </div>
+            );
+          })()}
           <div className="flex flex-col md:flex-row gap-6">
             <div className="flex-1">
               <div className="relative rounded-2xl overflow-hidden aspect-[4/3]" style={{ background: "var(--bg-void)", border: "1px solid var(--border-subtle)" }}>

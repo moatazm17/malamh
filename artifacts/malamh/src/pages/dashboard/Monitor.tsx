@@ -51,10 +51,24 @@ export default function Monitor() {
         toast({ title: n > 0 ? `Scan complete — ${n} new finding${n === 1 ? "" : "s"}` : "Scan complete — no new findings" });
         setTimeout(() => setScanPhase("idle"), 3000);
       },
-      onError: () => {
+      onError: (err: any) => {
         clearInterval(interval);
         setScanPhase("idle");
-        toast({ title: "Scan failed", variant: "destructive" });
+        const status = err?.response?.status ?? err?.status;
+        const serverMsg = err?.response?.data?.message ?? err?.data?.message ?? err?.message;
+        if (status === 403) {
+          toast({
+            title: "Web Monitor requires an upgrade",
+            description: serverMsg ?? "Upgrade to PRO or MONITOR to scan the web for unauthorized use of your face.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Scan failed",
+            description: serverMsg ?? "Something went wrong. Please try again in a moment.",
+            variant: "destructive",
+          });
+        }
       },
     });
   };
