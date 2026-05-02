@@ -97,7 +97,12 @@ export default function RegisterFace() {
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: "user",
+          frameRate: { ideal: 30 },
+        },
       });
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
@@ -111,7 +116,7 @@ export default function RegisterFace() {
     setPassed({ smile: false, left: false, right: false });
     setLiveData(null);
     await startCamera();
-    pollRef.current = setInterval(() => analyzeFrame(), 1200);
+    pollRef.current = setInterval(() => analyzeFrame(), 800);
   };
 
   const analyzeFrame = async () => {
@@ -129,9 +134,9 @@ export default function RegisterFace() {
       setLiveData({ smile: data.smileConfidence ?? 0, yaw: data.yaw ?? 0, eyesOpen: data.eyesOpen ?? false, brightness: data.brightness ?? 0, sharpness: data.sharpness ?? 0 });
       setPassed((prev) => {
         const next = { ...prev };
-        if (!prev.smile && data.smile && data.smileConfidence > 80) next.smile = true;
-        if (!prev.left && data.yaw < -15) next.left = true;
-        if (!prev.right && data.yaw > 15) next.right = true;
+        if (!prev.smile && data.smile && data.smileConfidence > 55) next.smile = true;
+        if (!prev.left && data.yaw < -12) next.left = true;
+        if (!prev.right && data.yaw > 12) next.right = true;
         return next;
       });
     } catch { /* ignore */ }
