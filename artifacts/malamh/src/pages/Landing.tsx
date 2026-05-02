@@ -67,25 +67,20 @@ function CountUp({ end, duration = 1800, prefix = "", suffix = "" }: { end: numb
    ============================================================ */
 
 function SectionHero() {
-  const words = "Your face is being used right now. You just don't know it.".split(" ");
   return (
     <section className="relative min-h-[100svh] flex items-center justify-center overflow-hidden px-6">
       <MeshBlobs />
       <div className="relative z-10 max-w-4xl mx-auto text-center">
         <h1 className="headline-display text-[clamp(2rem,6vw,4.25rem)]">
-          {words.map((w, i) => (
-            <span key={i} className="inline-block anim-fade-up" style={{ animationDelay: `${i * 80}ms`, marginRight: "0.35em" }}>
-              {w}
-            </span>
-          ))}
+          Your face is being used right now. You just don't know it.
         </h1>
         <p
-          className="anim-fade-up mt-8 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed"
-          style={{ color: "var(--text-secondary)", animationDelay: `${words.length * 80 + 200}ms`, lineHeight: 1.7 }}
+          className="mt-8 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed"
+          style={{ color: "var(--text-secondary)", lineHeight: 1.7 }}
         >
           Anyone can take your photo from social media, feed it to any AI tool, and generate a fake image of you. Doing anything. Wearing anything. And you can't do anything about it.
         </p>
-        <div className="anim-fade-up mt-10" style={{ animationDelay: `${words.length * 80 + 700}ms` }}>
+        <div className="mt-10">
           <Link href="/register" className="btn-mh btn-mh-primary btn-mh-large anim-pulse-glow">
             Take back control
             <ArrowRight className="w-5 h-5" />
