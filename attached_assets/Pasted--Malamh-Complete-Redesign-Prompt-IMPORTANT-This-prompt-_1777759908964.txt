@@ -1,0 +1,601 @@
+# Malamh — Complete Redesign Prompt
+
+## IMPORTANT: This prompt is ONLY about visual design, UI, UX, animations, and styling. Do NOT change any backend logic, API routes, database schema, or functionality. Only redesign how everything LOOKS and FEELS.
+
+---
+
+## Global Design System
+
+### Aesthetic Direction
+Dark, cinematic, high-end. NOT generic startup. NOT "AI slop." Think Linear.app + Stripe + Christopher Nolan movie poster. This website protects something valuable — it should FEEL like it.
+
+### Color System (use as CSS variables everywhere)
+```css
+:root {
+  --bg-void: #050507;
+  --bg-primary: #0a0a0f;
+  --bg-elevated: #111118;
+  --bg-hover: #1a1a24;
+  --border-subtle: #1e1e2e;
+  --border-glow: #2a2a4a;
+  
+  --text-primary: #f0f0f5;
+  --text-secondary: #8888a0;
+  --text-muted: #555566;
+  
+  --accent-blue: #4d7cff;
+  --accent-blue-glow: rgba(77, 124, 255, 0.15);
+  --accent-red: #ff4d5e;
+  --accent-red-glow: rgba(255, 77, 94, 0.12);
+  --accent-green: #00d48a;
+  --accent-green-glow: rgba(0, 212, 138, 0.12);
+  --accent-amber: #ffb020;
+  --accent-amber-glow: rgba(255, 176, 32, 0.12);
+}
+```
+
+### Typography
+- Display/Hero: "Cabinet Grotesk" from https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@700,800,900&display=swap — weights 700, 800, 900
+- Body: "Satoshi" from https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap — weights 400, 500, 600
+- Mono/Code: "JetBrains Mono" from Google Fonts — for API code snippets
+- Arabic (ملامح brand only): "IBM Plex Sans Arabic" from Google Fonts
+- NEVER use Inter, Roboto, Arial, system-ui, or any generic font anywhere
+
+### Global Effects (apply to ALL pages)
+- Noise texture overlay on body: `background-image: url("data:image/svg+xml,...")` with opacity 0.03, creates film grain feel
+- All cards: `background: rgba(17, 17, 24, 0.6); backdrop-filter: blur(20px); border: 1px solid var(--border-subtle);` with hover → `border-color: var(--border-glow); transform: translateY(-2px);`
+- All buttons primary: `background: var(--accent-blue); box-shadow: 0 0 30px var(--accent-blue-glow);` with hover → shadow expands to 50px
+- All buttons ghost/secondary: `background: transparent; border: 1px solid var(--border-subtle); color: var(--text-secondary);` with hover → `border-color: var(--accent-blue); color: var(--text-primary);`
+- All page transitions: elements fade in + slide up 20px on mount, staggered 0.05s between siblings
+- Scroll-triggered animations: use Intersection Observer, elements start opacity:0 translateY:30px, animate to opacity:1 translateY:0 with ease-out 0.6s
+- Input fields: `background: var(--bg-primary); border: 1px solid var(--border-subtle); color: var(--text-primary);` with focus → `border-color: var(--accent-blue); box-shadow: 0 0 20px var(--accent-blue-glow);`
+- Status badges: BLOCKED = red bg with red glow, TOKEN_REQUIRED = amber bg with amber glow, OPEN = green bg with green glow. All with `border-radius: 9999px; padding: 4px 12px; font-size: 0.75rem; font-weight: 600;`
+- Tables: no visible borders. Rows separated by subtle 1px border-bottom in border-subtle. Hover row → bg-hover. Header text → text-muted, uppercase, letter-spacing 0.1em, font-size 0.7rem.
+- Modal/Dialog: centered, glass card, dark overlay with blur behind it
+
+---
+
+## Page-by-Page Redesign
+
+---
+
+### LANDING PAGE (`/`)
+
+This is the MOST important page. It tells a story. Each section is almost full viewport height. The page should feel like scrolling through a cinematic experience, not reading a website.
+
+**Section 1 — THE HOOK (Hero)**
+
+Background: Animated gradient mesh — 3 large blurred circles (dark blue, dark purple, dark red) slowly orbiting/morphing behind the text. Use CSS keyframes with filter:blur(120px) on absolutely positioned divs.
+
+Content centered vertically and horizontally:
+
+Headline (Cabinet Grotesk 900, 3.5rem desktop / 2rem mobile, text-primary, letter-spacing: -0.03em):
+"Your face is being used right now. You just don't know it."
+Animation: each word fades in sequentially, 0.08s delay per word.
+
+Subtitle (Satoshi 400, 1.2rem, text-secondary, max-width: 600px, line-height: 1.7):
+"Anyone can take your photo from social media, feed it to any AI tool, and generate a fake image of you. Doing anything. Wearing anything. And you can't do anything about it."
+Animation: fades in 1s after headline completes.
+
+CTA button: "Take back control" — accent-blue, large (padding 16px 40px), glow shadow, slides up 0.3s after subtitle.
+
+Animated chevron at bottom of viewport, bouncing slowly, indicating scroll.
+
+---
+
+**Section 2 — THE NUMBERS**
+
+Section label (text-muted, uppercase, letter-spacing 0.15em, font-size 0.7rem, Satoshi 600): "THE PROBLEM IN NUMBERS"
+
+Three stat blocks in a row (flex on desktop, stack on mobile):
+
+Stat 1: "15.4B" — Cabinet Grotesk 900, 4.5rem, accent-red. Label below: "images trained on without consent" — Satoshi 400, text-secondary. Counter animates from 0 on scroll-in.
+
+Stat 2: "0" — Same styling. Label: "people asked for permission." No counting animation — appears instantly. The zero IS the statement.
+
+Stat 3: "$0" — Same styling. Label: "compensation paid."
+
+---
+
+**Section 3 — FAILED SOLUTIONS**
+
+Title (Cabinet Grotesk 800, 2.5rem): "Everyone is solving the wrong problem"
+
+Three glass cards in a row. Each has:
+- Animated SVG red X at top — draws itself (stroke-dashoffset animation) when scrolled into view
+- Card title (Satoshi 600, 1.1rem, text-primary)
+- Card body (Satoshi 400, 0.95rem, text-secondary, line-height 1.6)
+
+Card 1 — "Watermarking tools" — "They mark your photos AFTER you post them. But AI already trained on your old photos. The damage is done."
+
+Card 2 — "Takedown requests" — "You find a fake image. You report it. Takes weeks. Meanwhile shared 10,000 times. Always one step behind."
+
+Card 3 — "Legal action" — "Sue who? An AI model trained on a dataset from the entire internet? Good luck."
+
+Bold statement below (Satoshi 600, 1.3rem, accent-red, text-center, max-width 800px):
+"Every existing solution fixes damage AFTER it happens. No one prevents it. No one watches for you."
+
+---
+
+**Section 4 — THE PIVOT**
+
+Full viewport. Nothing else. bg-void background. Pure negative space.
+
+Line 1 (Cabinet Grotesk 800, 3rem, text-primary, centered): "What if AI had to ask YOU first?"
+Fades in slowly (1.5s).
+
+2 seconds of empty space.
+
+Line 2 (Satoshi 500, 1.5rem, text-secondary, centered): "And what if someone was watching the entire internet for your face — so you don't have to?"
+Fades in after the pause.
+
+---
+
+**Section 5 — INTRODUCING MALAMH**
+
+Background shifts: subtle blue undertone now (the mood changes from danger to hope).
+
+Malamh logo + "ملامح" in IBM Plex Sans Arabic — appears with scale(0.9)→scale(1) + opacity animation + soft blue glow.
+
+Tagline (Satoshi 500, 1.3rem, text-primary): "Own your face in the age of AI"
+
+One-liner (Satoshi 400, 1rem, text-secondary, max-width 700px):
+"The world's first facial consent registry and monitoring system. Register your face. Set your rules. We enforce them — and we hunt down violations for you."
+
+---
+
+**Section 6 — THREE PILLARS**
+
+Three columns (stack on mobile), each with staggered reveal (0.15s between columns):
+
+Each column:
+- Custom SVG icon at top (48x48, stroke style, accent-blue)
+- Title (Satoshi 600, 1.1rem, text-primary)
+- Body (Satoshi 400, 0.9rem, text-secondary, line-height 1.6)
+
+Column 1 — icon: face dissolving into dots
+"Register, don't upload" — "We don't store your photo. We convert your face into a mathematical signature — 512 numbers. Protected by math, not a JPEG on a server."
+
+Column 2 — icon: three toggle switches
+"You set the rules" — "Full block. Token-based approval. Or open consent. Your face, your choice."
+
+Column 3 — icon: arrow hitting a shield
+"One API for all AI" — "Any AI company, before generating a face, checks with Malamh. One call. One answer."
+
+---
+
+**Section 7 — WE HUNT**
+
+Background: subtle animated scan line moving down slowly (thin horizontal line, accent-blue at 10% opacity, repeating).
+
+Title (Cabinet Grotesk 800, 2.5rem, accent-blue): "We don't wait. We hunt."
+
+Subtitle (Satoshi 400, 1.1rem, text-secondary): "Other tools wait for you to find the problem. We find it for you."
+
+Body (Satoshi 400, 1rem, text-secondary): "Malamh scans the internet 24/7. Every website. Every platform. Every AI-generated image. If your face shows up where it shouldn't — you know instantly."
+
+Four feature rows (slide in from left, staggered):
+Each row: icon (24px, accent-blue) + text (Satoshi 400, text-secondary)
+Row 1 — radar icon: "Automated scanning — we search the entire web for you"
+Row 2 — bell icon: "Instant alerts — the moment your face appears unauthorized"
+Row 3 — paper icon: "One-click takedown — pre-filled GDPR and DMCA templates"
+Row 4 — check icon: "Track results — sent, responded, removed. Full visibility."
+
+---
+
+**Section 8 — HOW IT WORKS**
+
+Horizontal timeline with 4 steps connected by a thin line (accent-blue at 30% opacity). Each step is a numbered circle + title + description. On mobile: vertical timeline.
+
+Step 1 — "Verify" — "Look at the camera. Smile, blink, turn. We verify you're real."
+Step 2 — "Register" — "Your face becomes a 512-number signature. No photo stored."
+Step 3 — "Protect" — "Our API blocks unauthorized AI generation. Our scanner finds existing violations."
+Step 4 — "Act" — "Get alerts. Send takedowns. Track removal. One click."
+
+---
+
+**Section 9 — VISION**
+
+Most atmospheric section. Gradient mesh returns (blue/green tones). Cinematic.
+
+Text centered, each line staggered fade-in (0.4s between lines):
+
+"Your face is yours." (Cabinet Grotesk 800, 2rem)
+"Not a data point." (same)
+"Not a training sample." (same)
+"Not raw material for someone else's product." (same)
+
+Pause (1s).
+
+"Imagine a world where AI asks before it generates. Where your grandmother's face can't be deepfaked. Where a child is protected before they're old enough to protect themselves." (Satoshi 400, 1.1rem, text-secondary, max-width 700px)
+
+"That's not a fantasy. That's Malamh." (Satoshi 600, 1.2rem, text-primary)
+
+---
+
+**Section 10 — PRICING**
+
+Three pricing cards. Middle card (Pro) slightly elevated with accent-blue border glow.
+
+Card layout: glass card, title at top, price large, feature list below, CTA button.
+
+Free ($0): "Register up to 3 faces. Set consent. 100 checks/month."
+Pro ($12/mo): "10 faces. 10,000 checks. Web scanning. Takedown tools." — POPULAR badge.
+API Builder ($49/mo): "Unlimited everything. Webhooks. Priority support."
+
+---
+
+**Section 11 — FOR AI COMPANIES**
+
+Title: "For AI companies: compliance made simple"
+Body: "EU AI Act. Tightening regulations. One API. Integrate once. Stay compliant everywhere."
+
+Code block (glass card, JetBrains Mono, syntax-highlighted):
+```
+POST /api/v1/check-face
+→ {"match": true, "consent": "blocked"}
+// One call. Full compliance.
+```
+
+Ghost CTA: "View API Documentation →"
+
+---
+
+**Section 12 — LIVE COUNTER**
+
+Large animated counter (Cabinet Grotesk 900, 5rem, accent-blue with glow). Pulls from DB.
+Subtitle: "faces protected and counting"
+Pulse ring animation around the number every 3 seconds.
+CTA: "Be one of them"
+
+---
+
+**Section 13 — FINAL CTA**
+
+Full viewport. Dark.
+
+"Your face has been used without your permission for years." (Satoshi 400, 1.2rem, text-secondary)
+"Today, you can change that." (Cabinet Grotesk 800, 2.5rem, text-primary)
+
+Large CTA: "Protect Your Face — It's Free" — accent-blue, persistent glow pulse.
+Below: "No credit card. No photos stored. 60 seconds." — text-muted, 0.85rem.
+
+---
+
+**Section 14 — FOOTER**
+
+bg-void. Minimal.
+Links: About / API Docs / Pricing / Privacy / Terms
+"Built with conviction that your face belongs to you." — Satoshi 400, text-muted
+"Made by Moataz"
+
+---
+
+### LOGIN PAGE (`/login`)
+
+Centered card on bg-primary. Glass card styling.
+Malamh logo + "ملامح" at top of card.
+Email input + password input + "Log in" button (accent-blue, full width).
+"Don't have an account? Register" link below — text-secondary, hover accent-blue.
+Background: very subtle gradient mesh (blue only, almost invisible).
+
+---
+
+### REGISTER PAGE (`/register`)
+
+Same layout as login.
+Email + username + password + confirm password inputs.
+"Create Account" button.
+"Already have an account? Log in" link.
+
+---
+
+### PRICING PAGE (`/pricing`)
+
+Same design as Section 10 of landing page but as a full standalone page.
+Hero: "Choose your plan" — Cabinet Grotesk 800, 2rem.
+Subtitle: "Start free. Upgrade when you need more." — Satoshi 400, text-secondary.
+Three pricing cards (same styling as landing page).
+FAQ accordion below (glass cards, each question expands smoothly).
+
+---
+
+### DOCS PAGE (`/docs`)
+
+Two-column layout on desktop (sidebar + content). Single column on mobile.
+
+Left sidebar (fixed, bg-elevated, 250px wide):
+- Sections: Introduction, Authentication, Check Face, Consent Tokens, Webhooks, Rate Limits
+- Active section highlighted with accent-blue left border + text-primary
+- Other sections in text-secondary
+
+Right content:
+- Each endpoint: method badge (GET=green, POST=blue, DELETE=red) + path in mono
+- Description in Satoshi 400
+- Code examples in glass cards with JetBrains Mono, syntax highlighted (curl / Python / JavaScript tabs)
+- Response examples in glass cards
+- Parameter tables: no borders, subtle row separators, text-muted headers
+
+---
+
+### PLAYGROUND PAGE (`/playground`)
+
+Split layout: left panel (input) + right panel (result).
+
+Left panel:
+- "Test the API" — Cabinet Grotesk 700, 1.5rem
+- Upload area: dashed border (border-subtle), accent-blue on drag-over, icon in center
+- Or camera capture button
+- "Check Face" button — accent-blue, full width
+
+Right panel:
+- Before check: empty state with subtle text "Upload an image to test"
+- After check — MATCH FOUND:
+  - Circular progress ring animating the similarity score (0% → final %)
+  - Score number inside ring, large (Cabinet Grotesk 800, 3rem)
+  - Consent badge below: BLOCKED (red glow card) / TOKEN_REQUIRED (amber) / OPEN (green)
+  - User display name
+  - Raw JSON response in collapsible glass card
+- After check — NO MATCH:
+  - "No match found in registry" — text-secondary with subtle shield icon
+  - "This face is not protected"
+
+---
+
+### AI STUDIO PAGE (`/ai-studio`)
+
+Dark, immersive layout.
+
+Left: Upload face image area (same style as playground).
+Center: Style prompt selector — grid of preset cards (e.g., "Oil Painting," "3D Render," "Anime") — glass cards with image preview thumbnails.
+Right: Result panel:
+- If BLOCKED: result image is fully blurred/pixelated with red overlay and "BLOCKED" stamp
+- If TOKEN_REQUIRED: result blurred with amber "Approval Required" overlay + "Request Access" button
+- If OPEN: result displayed clearly with green "Consent Granted" badge
+- If NO MATCH: result displayed with "Unregistered Face" notice
+
+---
+
+### PUBLIC PROFILE (`/u/:username`)
+
+Centered layout, narrow (max-width 500px).
+User avatar/icon (abstract, generated from username hash — NOT a photo).
+Display name — Cabinet Grotesk 700, 1.5rem.
+Username — text-muted.
+Consent policy summary: "This person has [BLOCKED/set conditions for/allowed] AI generation of their likeness."
+Badge: "Protected by Malamh ملامح" with accent-blue glow border.
+If TOKEN_REQUIRED: "Request Access" button.
+
+---
+
+### CONSENT APPROVAL PAGE (`/consent/approve/:token`)
+
+Centered card (glass).
+"[Company Name] wants to generate an image of you"
+Purpose: displayed in text-secondary
+Two buttons side by side:
+- "Approve" — accent-green, glow
+- "Deny" — accent-red, glow
+If already decided: show status badge (Approved/Denied) with timestamp.
+
+---
+
+### DASHBOARD OVERVIEW (`/dashboard/overview`)
+
+**Sidebar (all dashboard pages share this):**
+Left sidebar, fixed, bg-elevated, 240px wide.
+Malamh logo at top.
+Nav items with icons:
+- Overview (grid icon)
+- Register Face (camera icon)
+- API Keys (key icon)
+- API Tester (play icon)
+- Monitor (radar icon)
+- Activity Log (clock icon)
+- Webhooks (link icon)
+- Settings (gear icon)
+Active: accent-blue text + subtle blue bg-glow. Others: text-secondary, hover text-primary.
+Bottom of sidebar: user name + plan badge + "Upgrade" if free.
+
+**Main content:**
+
+Top row — 4 stat cards (glass cards):
+- "Faces Registered" — number + icon, accent-blue
+- "API Checks" — number + "this month" label
+- "Block Rate" — percentage with small bar chart
+- "Pending Tokens" — number with amber badge if > 0
+
+Quick actions row — 3 action cards:
+- "Register a Face" — camera icon, accent-blue border on hover
+- "Test API" — play icon
+- "Scan Web" — radar icon
+
+Recent activity feed below:
+- Each row: timestamp (text-muted) + action description + result badge (BLOCKED/ALLOWED/TOKEN)
+- Subtle separator between rows
+- "View All" link at bottom
+
+---
+
+### REGISTER FACE PAGE (`/dashboard/register-face`)
+
+**3-step wizard with horizontal stepper at top:**
+
+Step indicators: three circles connected by line. Active step = accent-blue filled. Completed = accent-green filled with checkmark. Upcoming = border-subtle hollow.
+
+**Step 1 — Liveness Challenge:**
+
+Camera feed (large, rounded corners, 16:9 aspect).
+Below camera: challenge instruction card (glass card):
+- Icon of the current challenge (eye for BLINK, arrow for TURN, smile for SMILE)
+- Text: "Please blink" / "Turn your head left" / "Smile"
+- Progress dots showing which challenges are done (3-4 challenges)
+When challenge passes: green checkmark animation overlays the camera feed briefly.
+Overall progress bar at bottom of the section.
+
+**Step 2 — Capture Photos:**
+
+Camera feed (same styling).
+Instruction: "Take 3 photos from slightly different angles"
+Three circular thumbnail slots below camera (border-subtle, 80px diameter).
+As photos are captured: thumbnail fills in with the image, green border.
+"Capture" button — accent-blue, large.
+Processing indicator: "Generating facial signature..." with animated waveform visualization of the 512-dimension embedding vector (horizontal bar chart style, values animate in left-to-right, warm colors for high values, cool for low).
+
+**Step 3 — Set Consent:**
+
+Three large option cards (full width each, stacked):
+
+BLOCKED card: Red left border (4px accent-red). Title: "Full Block" (Satoshi 600). Description: "No AI system may generate or use your likeness." Red shield icon.
+
+TOKEN_REQUIRED card: Amber left border. Title: "Require Approval". Description: "AI must request your permission each time." Amber lock icon.
+
+OPEN card: Green left border. Title: "Open Consent". Description: "AI systems may freely generate your likeness." Green unlock icon.
+
+Selected card: background shifts to respective glow color, border thickens, checkmark appears.
+
+Label input: optional text field for face label.
+"Complete Registration" button.
+Success state: confetti-like particle animation + "Your face is now protected" message.
+
+---
+
+### FACE DETAIL PAGE (`/dashboard/face/:id`)
+
+Top section: face info card (glass card)
+- Face label (Cabinet Grotesk 700, 1.3rem)
+- Consent badge (colored as above)
+- Registration date — text-muted
+- Reference thumbnail (small, 64px, rounded)
+- "Change Consent" dropdown/selector
+- "Delete Face" button — accent-red ghost button, bottom right
+
+Middle section: Pending Consent Tokens
+- If any pending: list with requester name, purpose, timestamp, Approve/Deny buttons
+- If none: "No pending requests" — text-muted
+
+Bottom section: Access log for THIS face only
+- Table: timestamp, requester, result badge, score, purpose
+- Same table styling as global (no borders, row separators, muted headers)
+
+---
+
+### API KEYS PAGE (`/dashboard/api-keys`)
+
+Top: "API Keys" title + "Generate New Key" button (accent-blue).
+
+Generate modal (glass card dialog):
+- Key name input
+- "Generate" button
+- On success: show the key ONCE in a highlighted box (bg-amber-glow, mono font) with copy button. Warning text: "This key won't be shown again."
+
+Keys table:
+- Columns: Name, Key (masked: mlm_****), Status (active badge green / revoked badge red), Usage count, Last used, Actions
+- Actions: "Revoke" button (accent-red ghost)
+
+---
+
+### API TESTER PAGE (`/dashboard/api-test`)
+
+Similar layout to playground but inside dashboard.
+Left: API key input (text field, mono font) + image upload area + "Run Check" button
+Right: Raw JSON response in a glass card with syntax highlighting.
+Below: request/response timing info, headers sent.
+
+---
+
+### MONITOR PAGE (`/dashboard/monitor`)
+
+Top: "Web Monitor" title + "Scan Now" button (accent-blue with radar pulse animation on hover).
+
+When scanning: loading state with animated radar sweep graphic + "Scanning Google... Scanning Lexica... Verifying matches..." text progression.
+
+Results grid (cards, not table):
+Each result card (glass card):
+- Source badge: "Google" (blue) / "Lexica" (purple) / "Demo" (gray)
+- Image thumbnail (if available) — rounded, 80px
+- Page title — Satoshi 500, text-primary
+- Page URL — mono, text-muted, truncated
+- Confidence score — percentage with small circular indicator (green >90%, amber >70%, red <70%)
+- Date found — text-muted
+- Actions: "Visit Page" (ghost button), "Send Takedown" (accent-red ghost), "Dismiss" (text-muted)
+
+If no results: empty state — radar icon + "No matches found. Your face is safe — for now." text-secondary.
+
+---
+
+### ACTIVITY LOG PAGE (`/dashboard/activity`)
+
+Full width table:
+Columns: Time, Requester, Face, Result, Score, Purpose
+Filters row at top: date range picker, result type dropdown (All/Blocked/Allowed/Token)
+Pagination at bottom: simple prev/next with page counter.
+
+---
+
+### SETTINGS PAGE (`/dashboard/settings`)
+
+Stacked sections (glass cards, each full width):
+
+**Profile section:**
+Display name input, email (read-only), username input.
+"Save" button.
+
+**Notification Preferences:**
+Three toggle switches:
+- "Notify on web scan matches"
+- "Notify on API checks against my face"
+- "Notify on consent token requests"
+Toggle styling: bg-void when off, accent-blue when on, smooth transition.
+
+**Subscription:**
+Current plan badge.
+If free: "Upgrade to Pro" button — accent-blue.
+If paid: plan details + "Manage Subscription" button (opens Stripe Portal).
+
+**Danger Zone (at bottom, subtle red border):**
+"Delete Account" — accent-red ghost button.
+
+---
+
+### WEBHOOKS PAGE (`/dashboard/webhooks`)
+
+Top: "Webhooks" title + "Add Endpoint" button.
+
+Add/Edit modal (glass card):
+- URL input
+- Description input
+- Event checkboxes: face.checked, face.blocked, consent.requested, scan.completed
+- "Save" button
+
+Webhooks list (cards):
+Each card:
+- URL (mono, text-primary)
+- Description (text-secondary)
+- Events: small badges for each subscribed event
+- Status: active (green dot) / inactive (red dot)
+- Last delivered: timestamp or "Never"
+- Actions: "Test" (accent-blue ghost), "Rotate Secret" (amber ghost), "Edit" (ghost), "Delete" (accent-red ghost)
+
+---
+
+## Responsive Breakpoints
+
+- Desktop: > 1024px (sidebar visible, multi-column layouts)
+- Tablet: 768px - 1024px (sidebar collapses to hamburger, 2-column → 1-column)
+- Mobile: < 768px (everything stacked, full-width cards, bottom nav optional)
+
+## Animation Performance Rules
+
+- Use `transform` and `opacity` ONLY for animations (never animate width/height/top/left)
+- Use `will-change: transform, opacity` on animated elements
+- Respect `prefers-reduced-motion` — disable all motion animations if set
+- Intersection Observer for scroll triggers — disconnect after first trigger (animate once, not repeatedly)
+
+## Accessibility
+
+- All interactive elements must have visible focus states (accent-blue ring)
+- Color is never the ONLY indicator — always pair with icon or text
+- Minimum contrast ratio 4.5:1 for body text, 3:1 for large text
+- All images have alt text
+- Buttons have aria-labels when icon-only

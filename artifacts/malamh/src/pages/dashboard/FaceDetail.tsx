@@ -2,21 +2,17 @@ import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import {
-  useGetFace,
-  useUpdateFace,
-  useDeleteFace,
-  useListConsentTokens,
-  useRequestConsent,
+  useGetFace, useUpdateFace, useDeleteFace, useListConsentTokens, useRequestConsent,
 } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Trash2, ScanFace, Copy, Check } from "lucide-react";
+import { Loader2, Trash2, ScanFace, Copy, Check, ShieldOff, ShieldAlert, ShieldCheck } from "lucide-react";
 
 type ConsentLevel = "OPEN" | "BLOCKED" | "TOKEN_REQUIRED";
 
-const consentLabels: Record<string, string> = {
-  OPEN: "Open",
-  BLOCKED: "Blocked",
-  TOKEN_REQUIRED: "Token Required",
+const consentMeta: Record<ConsentLevel, { label: string; Icon: any; color: string; badge: string }> = {
+  BLOCKED:        { label: "Blocked",         Icon: ShieldOff,   color: "var(--accent-red)",   badge: "badge-blocked" },
+  TOKEN_REQUIRED: { label: "Token Required",  Icon: ShieldAlert, color: "var(--accent-amber)", badge: "badge-token" },
+  OPEN:           { label: "Open",            Icon: ShieldCheck, color: "var(--accent-green)", badge: "badge-open" },
 };
 
 export default function FaceDetail() {
@@ -37,30 +33,23 @@ export default function FaceDetail() {
 
   const handleUpdateConsent = (level: ConsentLevel) => {
     updateFace.mutate(
-      { id, data: { consentLevel: level as "BLOCKED" | "TOKEN_REQUIRED" | "OPEN" } },
-      {
-        onError: () => toast({ title: "Update failed", variant: "destructive" }),
-      }
+      { id, data: { consentLevel: level } },
+      { onError: () => toast({ title: "Update failed", variant: "destructive" }) }
     );
   };
 
   const handleDelete = () => {
     if (!confirm("Delete this face registration? This cannot be undone.")) return;
-    deleteFace.mutate(
-      { id },
-      {
-        onSuccess: () => setLocation("/dashboard/overview"),
-        onError: () => toast({ title: "Delete failed", variant: "destructive" }),
-      }
-    );
+    deleteFace.mutate({ id }, {
+      onSuccess: () => setLocation("/dashboard/overview"),
+      onError: () => toast({ title: "Delete failed", variant: "destructive" }),
+    });
   };
 
   const handleCreateToken = () => {
     requestConsent.mutate(
       { data: { faceId: id, requesterName: "Manual", purpose: "Self-created token" } },
-      {
-        onError: () => toast({ title: "Failed to create token", variant: "destructive" }),
-      }
+      { onError: () => toast({ title: "Failed to create token", variant: "destructive" }) }
     );
   };
 
@@ -74,7 +63,7 @@ export default function FaceDetail() {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-60">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Loader2 className="h-8 w-8 animate-spin" style={{ color: "var(--accent-blue)" }} />
         </div>
       </DashboardLayout>
     );
@@ -83,103 +72,100 @@ export default function FaceDetail() {
   if (error || !face) {
     return (
       <DashboardLayout>
-        <div className="text-center py-20 text-muted-foreground">Face not found.</div>
+        <div className="text-center py-20" style={{ color: "var(--text-muted)" }}>Face not found.</div>
       </DashboardLayout>
     );
   }
 
+  const meta = consentMeta[currentConsent];
+
   return (
     <DashboardLayout>
-      <div className="max-w-2xl flex flex-col gap-8">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center border border-border">
-              <ScanFace className="h-6 w-6 text-muted-foreground" />
+      <div className="flex flex-col gap-6 max-w-3xl anim-fade-up">
+        {/* Top info card */}
+        <div className="glass-card-elevated p-7">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="flex items-start gap-4">
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ background: "var(--accent-blue-glow)", border: "1px solid var(--accent-blue)" }}
+              >
+                <ScanFace className="w-7 h-7" style={{ color: "var(--accent-blue)" }} />
+              </div>
+              <div>
+                <h1 className="headline-section text-2xl mb-1">{face.label ?? "Face"}</h1>
+                <span className={`badge-mh ${meta.badge} mr-2`}>{meta.label}</span>
+                <p className="text-xs mt-3" style={{ color: "var(--text-muted)" }}>
+                  Registered {new Date(face.createdAt).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold">{face.label ?? "Face"}</h1>
-              <p className="text-xs text-muted-foreground font-mono">{face.id}</p>
-            </div>
+            <button onClick={handleDelete} className="btn-mh btn-mh-danger">
+              <Trash2 className="w-4 h-4" /> Delete Face
+            </button>
           </div>
-          <button onClick={handleDelete} className="btn btn-ghost text-destructive hover:bg-destructive/10 gap-2 h-9 px-3 text-sm">
-            <Trash2 className="h-4 w-4" /> Delete
-          </button>
         </div>
 
-        {/* Consent level */}
-        <div className="surface p-6">
-          <h2 className="font-semibold mb-4">Consent Level</h2>
-          <div className="flex flex-col gap-2">
-            {(["OPEN", "TOKEN_REQUIRED", "BLOCKED"] as ConsentLevel[]).map((level) => (
-              <button
-                key={level}
-                onClick={() => handleUpdateConsent(level)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg border text-sm text-left transition-colors ${
-                  currentConsent === level
-                    ? "border-primary/50 bg-primary/5 text-foreground"
-                    : "border-border/50 text-muted-foreground hover:border-border"
-                }`}
-              >
-                <span
-                  className={`w-3 h-3 rounded-full border-2 flex-shrink-0 ${
-                    currentConsent === level ? "border-primary bg-primary" : "border-muted-foreground"
-                  }`}
-                />
-                <span className="font-medium">{consentLabels[level]}</span>
-                {currentConsent === level && updateFace.isPending && (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin ml-auto" />
-                )}
-              </button>
-            ))}
+        {/* Consent selector */}
+        <div className="glass-card p-6">
+          <h2 className="text-lg font-semibold mb-5" style={{ fontFamily: "var(--app-font-display)" }}>Change Consent</h2>
+          <div className="flex flex-col gap-3">
+            {(["BLOCKED", "TOKEN_REQUIRED", "OPEN"] as ConsentLevel[]).map((level) => {
+              const m = consentMeta[level];
+              const active = currentConsent === level;
+              return (
+                <button
+                  key={level} onClick={() => handleUpdateConsent(level)}
+                  className="flex items-start gap-4 p-4 rounded-xl text-left transition-all"
+                  style={{
+                    background: active ? `color-mix(in srgb, ${m.color} 8%, transparent)` : "var(--bg-void)",
+                    border: `1px solid ${active ? m.color : "var(--border-subtle)"}`,
+                    borderLeftWidth: active ? 4 : 1,
+                    boxShadow: active ? `0 0 24px color-mix(in srgb, ${m.color} 18%, transparent)` : undefined,
+                  }}
+                >
+                  <m.Icon className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: m.color }} />
+                  <div className="flex-1">
+                    <p className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>{m.label}</p>
+                  </div>
+                  {active && updateFace.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {active && !updateFace.isPending && <Check className="w-4 h-4" style={{ color: m.color }} />}
+                </button>
+              );
+            })}
           </div>
         </div>
 
         {/* Face ID */}
-        <div className="surface p-6">
-          <h2 className="font-semibold mb-3">Face ID</h2>
+        <div className="glass-card p-6">
+          <h2 className="text-lg font-semibold mb-4" style={{ fontFamily: "var(--app-font-display)" }}>Face ID</h2>
           <div className="flex items-center gap-2">
-            <code className="flex-1 font-mono text-sm bg-background rounded border border-border/50 px-3 py-2 text-muted-foreground break-all">
-              {face.id}
-            </code>
-            <button onClick={() => handleCopy(face.id)} className="btn btn-ghost border border-border/50 h-9 w-9 p-0 flex-shrink-0">
-              {copied === face.id ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
+            <code className="flex-1 code-block text-xs break-all" style={{ padding: "10px 14px" }}>{face.id}</code>
+            <button onClick={() => handleCopy(face.id)} className="btn-mh btn-mh-ghost flex-shrink-0" style={{ padding: "10px 14px" }}>
+              {copied === face.id ? <Check className="w-4 h-4" style={{ color: "var(--accent-green)" }} /> : <Copy className="w-4 h-4" />}
             </button>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">
+          <p className="text-xs mt-3" style={{ color: "var(--text-muted)" }}>
             Share this ID with AI systems that need to check your consent.
           </p>
         </div>
 
         {/* Consent tokens */}
-        <div className="surface p-6">
+        <div className="glass-card p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold">Consent Tokens</h2>
-            <button
-              onClick={handleCreateToken}
-              disabled={requestConsent.isPending}
-              className="btn btn-ghost border border-border/50 h-8 px-3 text-xs gap-1.5"
-            >
-              {requestConsent.isPending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                "+ New token"
-              )}
+            <h2 className="text-lg font-semibold" style={{ fontFamily: "var(--app-font-display)" }}>Pending Consent Tokens</h2>
+            <button onClick={handleCreateToken} disabled={requestConsent.isPending} className="btn-mh btn-mh-ghost text-xs" style={{ padding: "6px 14px" }}>
+              {requestConsent.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "+ New token"}
             </button>
           </div>
           {faceTokens.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No tokens yet. Create one to grant temporary consent.</p>
+            <p className="text-sm py-4" style={{ color: "var(--text-muted)" }}>No pending requests.</p>
           ) : (
             <div className="flex flex-col gap-2">
               {faceTokens.map((t) => (
                 <div key={t.id} className="flex items-center gap-2">
-                  <code className="flex-1 font-mono text-xs bg-background rounded border border-border/50 px-3 py-2 text-muted-foreground truncate">
-                    {t.token}
-                  </code>
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full border font-medium flex-shrink-0 ${
-                      t.approved ? "badge-open" : t.used ? "badge-blocked" : "badge-token"
-                    }`}
-                  >
+                  <code className="flex-1 code-block text-xs truncate" style={{ padding: "8px 12px" }}>{t.token}</code>
+                  <span className={`badge-mh ${t.approved ? "badge-open" : t.used ? "badge-blocked" : "badge-token"} flex-shrink-0`}>
                     {t.approved ? "approved" : t.used ? "used" : "pending"}
                   </span>
                 </div>
@@ -187,10 +173,6 @@ export default function FaceDetail() {
             </div>
           )}
         </div>
-
-        <p className="text-xs text-muted-foreground">
-          Registered {new Date(face.createdAt).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
-        </p>
       </div>
     </DashboardLayout>
   );

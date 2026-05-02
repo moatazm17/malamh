@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useParams } from "wouter";
-import { Shield, CheckCircle, XCircle, Loader2, AlertTriangle } from "lucide-react";
+import { CheckCircle, XCircle, Loader2, AlertTriangle } from "lucide-react";
 import { useConsentDecision } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
+import { MalamhMark } from "@/components/layout/PublicLayout";
 
 export default function ConsentApprove() {
   const params = useParams<{ token: string }>();
@@ -21,71 +22,73 @@ export default function ConsentApprove() {
     );
   };
 
-  if (done === "approve") {
+  if (done) {
+    const ok = done === "approve";
     return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-background px-4 text-center">
-        <CheckCircle className="h-16 w-16 text-green-400 mb-6" />
-        <h1 className="text-2xl font-bold mb-2">Consent Approved</h1>
-        <p className="text-muted-foreground">You've approved this one-time generation request. You can close this page.</p>
-      </div>
-    );
-  }
-
-  if (done === "deny") {
-    return (
-      <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-background px-4 text-center">
-        <XCircle className="h-16 w-16 text-destructive mb-6" />
-        <h1 className="text-2xl font-bold mb-2">Request Rejected</h1>
-        <p className="text-muted-foreground">You've rejected this generation request. The requester has been notified.</p>
+      <div className="min-h-[100dvh] flex flex-col items-center justify-center px-4 text-center anim-fade-up" style={{ background: "var(--bg-primary)" }}>
+        <div
+          className="w-20 h-20 rounded-full flex items-center justify-center mb-6"
+          style={{
+            background: ok ? "var(--accent-green-glow)" : "var(--accent-red-glow)",
+            border: `1px solid ${ok ? "var(--accent-green)" : "var(--accent-red)"}`,
+            boxShadow: `0 0 60px ${ok ? "rgba(0,212,138,0.3)" : "rgba(255,77,94,0.3)"}`,
+          }}
+        >
+          {ok ? <CheckCircle className="w-10 h-10" style={{ color: "var(--accent-green)" }} /> : <XCircle className="w-10 h-10" style={{ color: "var(--accent-red)" }} />}
+        </div>
+        <h1 className="headline-section text-3xl mb-2">{ok ? "Consent Approved" : "Request Rejected"}</h1>
+        <p className="text-base max-w-sm" style={{ color: "var(--text-secondary)" }}>
+          {ok
+            ? "You've approved this one-time generation request. You can close this page."
+            : "You've rejected this generation request. The requester has been notified."}
+        </p>
+        <p className="mt-6 text-xs" style={{ color: "var(--text-muted)" }}>{new Date().toLocaleString()}</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm">
+    <div className="min-h-[100dvh] flex flex-col items-center justify-center px-4 relative overflow-hidden" style={{ background: "var(--bg-primary)" }}>
+      <div className="mesh-blob" style={{ width: 600, height: 600, background: "rgba(255,176,32,0.10)", top: "-15%", left: "-10%", animation: "mh-orbit-1 28s ease-in-out infinite" }} />
+
+      <div className="w-full max-w-md relative z-10 anim-fade-up">
         <div className="flex justify-center mb-8">
-          <div className="flex items-center gap-2">
-            <Shield className="h-7 w-7 text-primary" />
-            <span className="text-xl font-semibold tracking-tight">Malamh</span>
+          <div className="flex items-center gap-2.5">
+            <MalamhMark size={28} />
+            <span className="font-semibold tracking-tight text-lg" style={{ fontFamily: "var(--app-font-display)" }}>Malamh</span>
+            <span className="brand-arabic" style={{ color: "var(--text-secondary)" }}>ملامح</span>
           </div>
         </div>
 
-        <div className="surface p-8 text-center">
-          <div className="w-14 h-14 rounded-full bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-center mx-auto mb-6">
-            <AlertTriangle className="h-7 w-7 text-yellow-400" />
+        <div className="glass-card-elevated p-8 text-center" style={{ boxShadow: "0 0 60px rgba(255,176,32,0.1)" }}>
+          <div
+            className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6"
+            style={{ background: "var(--accent-amber-glow)", border: "1px solid var(--accent-amber)" }}
+          >
+            <AlertTriangle className="w-8 h-8" style={{ color: "var(--accent-amber)" }} />
           </div>
 
-          <h1 className="text-xl font-bold mb-2">Consent Request</h1>
-          <p className="text-sm text-muted-foreground mb-6">
-            An AI system is requesting permission to generate an image using your likeness.
-            This is a one-time consent token.
+          <h1 className="headline-section text-2xl mb-2">Consent Request</h1>
+          <p className="text-sm mb-7" style={{ color: "var(--text-secondary)" }}>
+            An AI system is requesting permission to generate an image using your likeness. This is a one-time consent token.
           </p>
 
-          <div className="bg-background rounded border border-border/50 p-3 font-mono text-xs text-muted-foreground mb-8 text-left break-all">
-            Token: {token}
+          <div className="code-block text-xs mb-8 text-left break-all" style={{ padding: "12px 14px" }}>
+            <span className="code-token-comment">// token</span>
+            <br />
+            {token}
           </div>
 
           <div className="flex flex-col gap-3">
-            <button
-              onClick={() => handle("approve")}
-              disabled={consentDecision.isPending}
-              className="btn btn-primary h-12 text-base gap-2"
-            >
-              {consentDecision.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : (
-                <><CheckCircle className="h-5 w-5" /> Approve this request</>
-              )}
+            <button onClick={() => handle("approve")} disabled={consentDecision.isPending} className="btn-mh w-full justify-center" style={{ padding: "14px 22px", background: "var(--accent-green)", color: "white", boxShadow: "0 0 30px rgba(0,212,138,0.3)" }}>
+              {consentDecision.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <><CheckCircle className="w-5 h-5" /> Approve this request</>}
             </button>
-            <button
-              onClick={() => handle("deny")}
-              disabled={consentDecision.isPending}
-              className="btn btn-danger h-12 text-base gap-2"
-            >
-              <XCircle className="h-5 w-5" /> Reject
+            <button onClick={() => handle("deny")} disabled={consentDecision.isPending} className="btn-mh w-full justify-center" style={{ padding: "14px 22px", background: "transparent", color: "var(--accent-red)", border: "1px solid var(--accent-red)" }}>
+              <XCircle className="w-5 h-5" /> Deny
             </button>
           </div>
 
-          <p className="mt-6 text-xs text-muted-foreground">
+          <p className="mt-6 text-xs" style={{ color: "var(--text-muted)" }}>
             This token can only be used once and expires in 24 hours.
           </p>
         </div>

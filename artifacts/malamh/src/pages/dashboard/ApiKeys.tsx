@@ -2,7 +2,7 @@ import { useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useListApiKeys, useCreateApiKey, useDeleteApiKey } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
-import { Key, Plus, Trash2, Copy, Check, Loader2 } from "lucide-react";
+import { Key, Plus, Trash2, Copy, Check, Loader2, AlertTriangle } from "lucide-react";
 
 export default function ApiKeys() {
   const { data: keys, isLoading } = useListApiKeys();
@@ -36,12 +36,7 @@ export default function ApiKeys() {
 
   const handleDelete = (id: string) => {
     if (!confirm("Delete this API key? Any integrations using it will stop working.")) return;
-    deleteKey.mutate(
-      { id },
-      {
-        onError: () => toast({ title: "Delete failed", variant: "destructive" }),
-      }
-    );
+    deleteKey.mutate({ id }, { onError: () => toast({ title: "Delete failed", variant: "destructive" }) });
   };
 
   const handleCopy = (text: string) => {
@@ -52,101 +47,100 @@ export default function ApiKeys() {
 
   return (
     <DashboardLayout>
-      <div className="max-w-2xl flex flex-col gap-8">
-        <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-8 anim-fade-up">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">API Keys</h1>
-            <p className="text-sm text-muted-foreground mt-1">Use these keys to authenticate calls to the Malamh API.</p>
+            <div className="section-label mb-2">API</div>
+            <h1 className="headline-section text-3xl md:text-4xl">API Keys</h1>
+            <p className="text-base mt-2" style={{ color: "var(--text-secondary)" }}>
+              Use these keys to authenticate calls to the Malamh API.
+            </p>
           </div>
-          <button onClick={() => setShowForm(!showForm)} className="btn btn-primary gap-2 h-9 px-4 text-sm">
-            <Plus className="h-4 w-4" /> New key
+          <button onClick={() => setShowForm(!showForm)} className="btn-mh btn-mh-primary">
+            <Plus className="w-4 h-4" /> Generate New Key
           </button>
         </div>
 
         {showForm && (
-          <div className="surface p-6">
-            <h2 className="font-semibold mb-4">Create API Key</h2>
+          <div className="glass-card-elevated p-6 anim-scale-in">
+            <h2 className="text-lg font-semibold mb-4" style={{ fontFamily: "var(--app-font-display)" }}>Create API Key</h2>
             <form onSubmit={handleCreate} className="flex gap-3">
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="input flex-1"
-                placeholder="Key name, e.g. Production App"
-                required
-              />
-              <button type="submit" disabled={createKey.isPending} className="btn btn-primary px-5 gap-2">
-                {createKey.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create"}
+              <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="input-mh flex-1" placeholder="Key name, e.g. Production App" required />
+              <button type="submit" disabled={createKey.isPending} className="btn-mh btn-mh-primary">
+                {createKey.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Generate"}
               </button>
             </form>
           </div>
         )}
 
         {newKeyValue && (
-          <div className="surface p-6 border-green-500/30 bg-green-500/5">
-            <p className="text-sm font-semibold text-green-400 mb-2">New key created — copy it now. You won't see it again.</p>
+          <div className="glass-card-elevated p-6 anim-scale-in" style={{ borderColor: "var(--accent-amber)", boxShadow: "0 0 60px rgba(255,176,32,0.15)" }}>
+            <div className="flex items-start gap-3 mb-4">
+              <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "var(--accent-amber)" }} />
+              <div>
+                <p className="text-sm font-semibold" style={{ color: "var(--accent-amber)" }}>Copy your new key now — it won't be shown again.</p>
+                <p className="text-xs mt-1" style={{ color: "var(--text-secondary)" }}>Store it securely on your server.</p>
+              </div>
+            </div>
             <div className="flex items-center gap-2">
-              <code className="flex-1 font-mono text-xs bg-background rounded border border-border/50 px-3 py-2.5 text-foreground break-all">
-                {newKeyValue}
-              </code>
-              <button onClick={() => handleCopy(newKeyValue)} className="btn btn-ghost border border-border/50 h-9 w-9 p-0 flex-shrink-0">
-                {copied === newKeyValue ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
+              <code className="flex-1 code-block text-xs break-all" style={{ padding: "10px 14px" }}>{newKeyValue}</code>
+              <button onClick={() => handleCopy(newKeyValue)} className="btn-mh btn-mh-ghost flex-shrink-0" style={{ padding: "10px 14px" }}>
+                {copied === newKeyValue ? <Check className="w-4 h-4" style={{ color: "var(--accent-green)" }} /> : <Copy className="w-4 h-4" />}
               </button>
             </div>
-            <button onClick={() => setNewKeyValue(null)} className="text-xs text-muted-foreground hover:text-foreground mt-3">
-              I've copied it
-            </button>
+            <button onClick={() => setNewKeyValue(null)} className="text-xs mt-3 hover:underline" style={{ color: "var(--text-muted)" }}>I've copied it →</button>
           </div>
         )}
 
-        <div className="surface p-6">
-          <h2 className="font-semibold mb-5">Your Keys</h2>
+        <div className="glass-card overflow-hidden">
           {isLoading ? (
-            <div className="flex items-center justify-center py-10">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--accent-blue)" }} />
             </div>
           ) : keyList.length === 0 ? (
-            <div className="text-center py-10">
-              <Key className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">No API keys yet.</p>
+            <div className="text-center py-16 px-6">
+              <Key className="w-12 h-12 mx-auto mb-3 opacity-30" style={{ color: "var(--text-muted)" }} />
+              <p className="text-sm" style={{ color: "var(--text-muted)" }}>No API keys yet. Generate one to start using the API.</p>
             </div>
           ) : (
-            <div className="flex flex-col gap-4">
-              {keyList.map((k) => (
-                <div key={k.id} className="flex items-center gap-3 py-3 border-b border-border/30 last:border-0">
-                  <div className="w-8 h-8 rounded bg-muted flex items-center justify-center border border-border/50 flex-shrink-0">
-                    <Key className="h-3.5 w-3.5 text-muted-foreground" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{k.name}</p>
-                    <p className="text-xs font-mono text-muted-foreground">
-                      {k.key?.slice(0, 18)}••••••••
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${k.active ? "badge-open" : "badge-blocked"}`}>
-                      {k.active ? "active" : "inactive"}
-                    </span>
-                    {k.lastUsed && (
-                      <span className="text-xs text-muted-foreground hidden md:block">
-                        Used {new Date(k.lastUsed).toLocaleDateString()}
+            <table className="table-mh">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Key</th>
+                  <th>Status</th>
+                  <th>Last used</th>
+                  <th className="text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {keyList.map((k) => (
+                  <tr key={k.id}>
+                    <td className="font-medium">{k.name}</td>
+                    <td className="font-mono text-xs" style={{ color: "var(--text-secondary)" }}>{k.key?.slice(0, 18)}••••••••</td>
+                    <td>
+                      <span className={`badge-mh ${k.active ? "badge-open" : "badge-blocked"}`}>
+                        {k.active ? "active" : "revoked"}
                       </span>
-                    )}
-                    <button onClick={() => handleDelete(k.id)} className="btn btn-ghost h-7 w-7 p-0 text-muted-foreground hover:text-destructive">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                    </td>
+                    <td style={{ color: "var(--text-muted)" }}>{k.lastUsed ? new Date(k.lastUsed).toLocaleDateString() : "—"}</td>
+                    <td className="text-right">
+                      <button onClick={() => handleDelete(k.id)} className="btn-mh btn-mh-danger text-xs" style={{ padding: "6px 12px" }}>
+                        <Trash2 className="w-3 h-3" /> Revoke
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
 
-        <div className="surface p-6">
-          <h2 className="text-sm font-semibold mb-3">Usage example</h2>
-          <pre className="font-mono text-xs bg-background rounded border border-border/50 p-4 overflow-x-auto">
+        <div className="glass-card p-6">
+          <div className="section-label mb-3">Usage example</div>
+          <pre className="code-block whitespace-pre overflow-x-auto">
 {`curl -X POST /api/check \\
-  -H "Authorization: Bearer mk_live_xxxxxxxx" \\
+  -H "Authorization: Bearer mlm_live_xxxxxxxx" \\
   -H "Content-Type: application/json" \\
   -d '{"face_id":"face_abc123"}'`}
           </pre>

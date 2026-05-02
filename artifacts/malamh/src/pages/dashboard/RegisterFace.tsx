@@ -5,23 +5,23 @@ import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api";
 import {
   Upload, Camera, Loader2, CheckCircle, ShieldOff, ShieldAlert, ShieldCheck,
-  SmilePlus, RotateCcw, Eye,
+  SmilePlus, RotateCcw, Eye, ArrowLeft, Smile, ArrowLeftRight,
 } from "lucide-react";
 
 type ConsentLevel = "OPEN" | "BLOCKED" | "TOKEN_REQUIRED";
 type Step = "mode" | "liveness" | "capture" | "encoding" | "consent" | "done";
 type LivenessChallenge = "smile" | "left" | "right";
 
-const CHALLENGES: { id: LivenessChallenge; label: string; instruction: string }[] = [
-  { id: "smile", label: "Smile", instruction: "Smile for the camera" },
-  { id: "left", label: "Turn left", instruction: "Turn your head to the left" },
-  { id: "right", label: "Turn right", instruction: "Turn your head to the right" },
+const CHALLENGES: { id: LivenessChallenge; label: string; instruction: string; Icon: any }[] = [
+  { id: "smile", label: "Smile", instruction: "Smile for the camera", Icon: Smile },
+  { id: "left", label: "Turn left", instruction: "Turn your head to the left", Icon: ArrowLeft },
+  { id: "right", label: "Turn right", instruction: "Turn your head to the right", Icon: ArrowLeftRight },
 ];
 
-const consentOptions: { value: ConsentLevel; label: string; desc: string; icon: typeof ShieldOff; color: string }[] = [
-  { value: "BLOCKED", label: "Blocked", desc: "No AI system may generate your likeness.", icon: ShieldOff, color: "text-red-400 border-red-500/30 bg-red-500/5" },
-  { value: "TOKEN_REQUIRED", label: "Token Required", desc: "Each request needs your personal approval.", icon: ShieldAlert, color: "text-yellow-400 border-yellow-500/30 bg-yellow-500/5" },
-  { value: "OPEN", label: "Open", desc: "AI generation of your likeness is freely allowed.", icon: ShieldCheck, color: "text-green-400 border-green-500/30 bg-green-500/5" },
+const consentOptions: { value: ConsentLevel; label: string; desc: string; Icon: any; color: string; glow: string }[] = [
+  { value: "BLOCKED", label: "Full Block", desc: "No AI system may generate or use your likeness.", Icon: ShieldOff, color: "var(--accent-red)", glow: "rgba(255,77,94,0.15)" },
+  { value: "TOKEN_REQUIRED", label: "Require Approval", desc: "AI must request your permission each time.", Icon: ShieldAlert, color: "var(--accent-amber)", glow: "rgba(255,176,32,0.15)" },
+  { value: "OPEN", label: "Open Consent", desc: "AI systems may freely generate your likeness.", Icon: ShieldCheck, color: "var(--accent-green)", glow: "rgba(0,212,138,0.15)" },
 ];
 
 function captureFrameFromVideo(video: HTMLVideoElement): string {
@@ -32,6 +32,32 @@ function captureFrameFromVideo(video: HTMLVideoElement): string {
   return canvas.toDataURL("image/jpeg", 0.85);
 }
 
+function Stepper({ step }: { step: Step }) {
+  const stepNum = step === "liveness" ? 1 : step === "capture" || step === "encoding" ? 2 : step === "consent" || step === "done" ? 3 : 1;
+  return (
+    <div className="flex items-center gap-2 mb-8 max-w-md">
+      {[1, 2, 3].map((n, i) => (
+        <div key={n} className="flex items-center flex-1">
+          <div
+            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all"
+            style={{
+              background: stepNum > n ? "var(--accent-green)" : stepNum === n ? "var(--accent-blue)" : "transparent",
+              border: `1px solid ${stepNum >= n ? "transparent" : "var(--border-subtle)"}`,
+              color: stepNum >= n ? "white" : "var(--text-muted)",
+              boxShadow: stepNum === n ? "0 0 16px var(--accent-blue-glow)" : undefined,
+            }}
+          >
+            {stepNum > n ? "✓" : n}
+          </div>
+          {i < 2 && (
+            <div className="flex-1 h-px mx-2" style={{ background: stepNum > n ? "var(--accent-green)" : "var(--border-subtle)" }} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function RegisterFace() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -39,25 +65,20 @@ export default function RegisterFace() {
   const [step, setStep] = useState<Step>("mode");
   const [mode, setMode] = useState<"liveness" | "upload">("liveness");
 
-  // Liveness state
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [challengeIdx, setChallengeIdx] = useState(0);
   const [passed, setPassed] = useState<Record<LivenessChallenge, boolean>>({ smile: false, left: false, right: false });
   const [liveData, setLiveData] = useState<{ smile: number; yaw: number; eyesOpen: boolean; brightness: number; sharpness: number } | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
 
-  // Capture state
   const [capturedFrames, setCapturedFrames] = useState<string[]>([]);
   const [captureStep, setCaptureStep] = useState(0);
   const CAPTURE_INSTRUCTIONS = ["Look straight at the camera", "Turn slightly to the left", "Turn slightly to the right"];
 
-  // Upload state
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Encoding / consent state
   const [label, setLabel] = useState("");
   const [consentLevel, setConsentLevel] = useState<ConsentLevel>("BLOCKED");
   const [encoding, setEncoding] = useState(false);
@@ -71,9 +92,7 @@ export default function RegisterFace() {
     streamRef.current = null;
   }, []);
 
-  useEffect(() => {
-    return () => stopCamera();
-  }, [stopCamera]);
+  useEffect(() => () => stopCamera(), [stopCamera]);
 
   const startCamera = async () => {
     try {
@@ -81,21 +100,17 @@ export default function RegisterFace() {
         video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
+      if (videoRef.current) videoRef.current.srcObject = stream;
     } catch {
-      toast({ title: "Camera access denied", description: "Please allow camera access to use liveness detection.", variant: "destructive" });
+      toast({ title: "Camera access denied", description: "Please allow camera access.", variant: "destructive" });
     }
   };
 
   const startLiveness = async () => {
     setStep("liveness");
-    setChallengeIdx(0);
     setPassed({ smile: false, left: false, right: false });
     setLiveData(null);
     await startCamera();
-    // Start polling frames
     pollRef.current = setInterval(() => analyzeFrame(), 1200);
   };
 
@@ -107,15 +122,11 @@ export default function RegisterFace() {
     const frameData = captureFrameFromVideo(video);
     const b64 = frameData.split(",")[1] || frameData;
     try {
-      const res = await apiFetch("/api/internal/liveness-frame", {
-        method: "POST",
-        body: JSON.stringify({ imageBase64: b64 }),
-      });
+      const res = await apiFetch("/api/internal/liveness-frame", { method: "POST", body: JSON.stringify({ imageBase64: b64 }) });
       if (!res.ok) return;
       const data = await res.json();
       if (!data.faceDetected) return;
       setLiveData({ smile: data.smileConfidence ?? 0, yaw: data.yaw ?? 0, eyesOpen: data.eyesOpen ?? false, brightness: data.brightness ?? 0, sharpness: data.sharpness ?? 0 });
-
       setPassed((prev) => {
         const next = { ...prev };
         if (!prev.smile && data.smile && data.smileConfidence > 80) next.smile = true;
@@ -123,23 +134,15 @@ export default function RegisterFace() {
         if (!prev.right && data.yaw > 15) next.right = true;
         return next;
       });
-    } catch {
-      // ignore
-    } finally {
-      setAnalyzing(false);
-    }
+    } catch { /* ignore */ }
+    finally { setAnalyzing(false); }
   };
 
-  // Check if all challenges passed
   const allPassed = passed.smile && passed.left && passed.right;
   useEffect(() => {
     if (allPassed && step === "liveness") {
       if (pollRef.current) clearInterval(pollRef.current);
-      setTimeout(() => {
-        setStep("capture");
-        setCaptureStep(0);
-        setCapturedFrames([]);
-      }, 600);
+      setTimeout(() => { setStep("capture"); setCaptureStep(0); setCapturedFrames([]); }, 600);
     }
   }, [allPassed, step]);
 
@@ -148,13 +151,8 @@ export default function RegisterFace() {
     const frame = captureFrameFromVideo(videoRef.current);
     const newFrames = [...capturedFrames, frame];
     setCapturedFrames(newFrames);
-    if (newFrames.length >= 3) {
-      stopCamera();
-      // Use the first frame as reference, start encoding
-      encodeFrames(newFrames);
-    } else {
-      setCaptureStep(captureStep + 1);
-    }
+    if (newFrames.length >= 3) { stopCamera(); encodeFrames(newFrames); }
+    else setCaptureStep(captureStep + 1);
   };
 
   const encodeFrames = async (frames: string[]) => {
@@ -162,15 +160,11 @@ export default function RegisterFace() {
     const primary = frames[0];
     const b64 = primary.split(",")[1] || primary;
     try {
-      const res = await apiFetch("/api/internal/embed", {
-        method: "POST",
-        body: JSON.stringify({ imageBase64: b64 }),
-      });
+      const res = await apiFetch("/api/internal/embed", { method: "POST", body: JSON.stringify({ imageBase64: b64 }) });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         toast({ title: "Encoding failed", description: err.message ?? "Could not process image", variant: "destructive" });
-        setStep("liveness");
-        return;
+        setStep("liveness"); return;
       }
       const data = await res.json();
       setAwsFaceId(data.awsFaceId ?? null);
@@ -185,10 +179,7 @@ export default function RegisterFace() {
   const handleFileUpload = async (file: File) => {
     if (!file.type.startsWith("image/")) return;
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const src = e.target?.result as string;
-      setUploadedImage(src);
-    };
+    reader.onload = (e) => setUploadedImage(e.target?.result as string);
     reader.readAsDataURL(file);
   };
 
@@ -197,15 +188,11 @@ export default function RegisterFace() {
     setStep("encoding");
     const b64 = uploadedImage.split(",")[1] || uploadedImage;
     try {
-      const res = await apiFetch("/api/internal/embed", {
-        method: "POST",
-        body: JSON.stringify({ imageBase64: b64 }),
-      });
+      const res = await apiFetch("/api/internal/embed", { method: "POST", body: JSON.stringify({ imageBase64: b64 }) });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         toast({ title: "Encoding failed", description: err.message ?? "Could not process image", variant: "destructive" });
-        setStep("mode");
-        return;
+        setStep("mode"); return;
       }
       const data = await res.json();
       setAwsFaceId(data.awsFaceId ?? null);
@@ -224,11 +211,8 @@ export default function RegisterFace() {
       const res = await apiFetch("/api/internal/faces", {
         method: "POST",
         body: JSON.stringify({
-          embedding,
-          consentLevel,
-          label: label || null,
-          awsFaceId: awsFaceId ?? undefined,
-          referenceImage: referenceImage ?? undefined,
+          embedding, consentLevel, label: label || null,
+          awsFaceId: awsFaceId ?? undefined, referenceImage: referenceImage ?? undefined,
           verified: mode === "liveness",
         }),
       });
@@ -242,123 +226,164 @@ export default function RegisterFace() {
       setStep("done");
     } catch (err: any) {
       toast({ title: "Network error", description: err.message, variant: "destructive" });
-    } finally {
-      setEncoding(false);
-    }
+    } finally { setEncoding(false); }
   };
 
-  // ─── Step: Done ───
+  // ─── DONE
   if (step === "done") {
     return (
       <DashboardLayout>
-        <div className="flex flex-col items-center justify-center min-h-[400px] gap-6 max-w-md mx-auto text-center">
-          <CheckCircle className="h-16 w-16 text-green-400" />
-          <div>
-            <h2 className="text-xl font-bold mb-2">Face Registered!</h2>
-            <p className="text-sm text-muted-foreground mb-1">Face ID:</p>
-            <p className="font-mono text-primary text-sm bg-background border border-border/50 px-3 py-2 rounded break-all">{doneId}</p>
-            {mode === "liveness" && <p className="text-xs text-green-400 mt-2">✓ Liveness verified</p>}
+        <div className="max-w-md mx-auto text-center anim-scale-in py-10">
+          <div
+            className="w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center"
+            style={{ background: "var(--accent-green-glow)", border: "1px solid var(--accent-green)", boxShadow: "0 0 60px rgba(0,212,138,0.3)" }}
+          >
+            <CheckCircle className="w-10 h-10" style={{ color: "var(--accent-green)" }} />
           </div>
-          <div className="flex gap-3">
-            <button onClick={() => setLocation(`/dashboard/face/${doneId}`)} className="btn btn-primary h-10 px-5">View face</button>
-            <button onClick={() => { setStep("mode"); setAwsFaceId(null); setReferenceImage(null); setLabel(""); setCapturedFrames([]); setUploadedImage(null); }} className="btn btn-ghost border border-border/50 h-10 px-5">Register another</button>
+          <h2 className="headline-section text-3xl mb-3">Your face is now protected</h2>
+          <p className="text-sm mb-1" style={{ color: "var(--text-secondary)" }}>Face ID</p>
+          <code className="code-block text-xs inline-block break-all" style={{ padding: "8px 14px", color: "var(--accent-blue)" }}>{doneId}</code>
+          {mode === "liveness" && (
+            <p className="text-xs mt-4" style={{ color: "var(--accent-green)" }}>✓ Liveness verified</p>
+          )}
+          <div className="flex gap-3 justify-center mt-8">
+            <button onClick={() => setLocation(`/dashboard/face/${doneId}`)} className="btn-mh btn-mh-primary">View face</button>
+            <button onClick={() => { setStep("mode"); setAwsFaceId(null); setReferenceImage(null); setLabel(""); setCapturedFrames([]); setUploadedImage(null); }} className="btn-mh btn-mh-ghost">Register another</button>
           </div>
         </div>
       </DashboardLayout>
     );
   }
 
-  // ─── Step: Encoding ───
+  // ─── ENCODING
   if (step === "encoding") {
     return (
       <DashboardLayout>
-        <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 max-w-md mx-auto text-center">
-          <div className="relative">
-            <div className="w-20 h-20 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+        <div className="max-w-md mx-auto text-center py-20 anim-fade-up">
+          <Stepper step="encoding" />
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full border-4 animate-spin" style={{ borderColor: "var(--border-subtle)", borderTopColor: "var(--accent-blue)" }} />
+          <h2 className="headline-section text-2xl mb-2">Generating facial signature…</h2>
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Computing 512-dimension embedding</p>
+          <div className="mt-6 flex gap-1 justify-center max-w-sm mx-auto h-8">
+            {[...Array(32)].map((_, i) => (
+              <div
+                key={i}
+                className="flex-1 rounded"
+                style={{
+                  background: i % 3 === 0 ? "var(--accent-amber)" : i % 3 === 1 ? "var(--accent-blue)" : "var(--accent-green)",
+                  height: `${20 + Math.random() * 80}%`,
+                  alignSelf: "flex-end",
+                  animation: `mh-fade-up 0.4s ease-out ${i * 30}ms both`,
+                }}
+              />
+            ))}
           </div>
-          <h2 className="text-lg font-semibold">Processing face…</h2>
-          <p className="text-sm text-muted-foreground">Running liveness analysis and facial encoding</p>
         </div>
       </DashboardLayout>
     );
   }
 
-  // ─── Step: Consent selection ───
+  // ─── CONSENT
   if (step === "consent") {
     return (
       <DashboardLayout>
-        <div className="max-w-xl">
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold">Set Consent Level</h1>
-            <p className="text-sm text-muted-foreground mt-1">Choose how AI systems may use your likeness.</p>
+        <div className="max-w-2xl anim-fade-up">
+          <Stepper step="consent" />
+          <div className="mb-7">
+            <div className="section-label mb-2">Step 3 of 3</div>
+            <h1 className="headline-section text-3xl">Set Your Consent</h1>
+            <p className="text-base mt-2" style={{ color: "var(--text-secondary)" }}>Choose how AI systems may use your likeness.</p>
           </div>
+
           {awsFaceId && (
-            <div className="surface p-4 mb-6 flex items-center gap-3">
-              <CheckCircle className="h-5 w-5 text-green-400 flex-shrink-0" />
-              <div>
+            <div className="glass-card p-4 mb-6 flex items-center gap-3">
+              <CheckCircle className="w-5 h-5 flex-shrink-0" style={{ color: "var(--accent-green)" }} />
+              <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium">Face encoded successfully</p>
-                <p className="font-mono text-xs text-muted-foreground truncate">AWS ID: {awsFaceId}</p>
+                <p className="font-mono text-xs truncate" style={{ color: "var(--text-muted)" }}>AWS ID: {awsFaceId}</p>
               </div>
             </div>
           )}
+
           <div className="flex flex-col gap-3 mb-6">
             {consentOptions.map((opt) => {
-              const Icon = opt.icon;
+              const active = consentLevel === opt.value;
               return (
-                <label key={opt.value} className={`flex items-start gap-4 p-5 rounded-xl border-2 cursor-pointer transition-all ${consentLevel === opt.value ? opt.color : "border-border/40 hover:border-border"}`}>
-                  <input type="radio" name="consent" value={opt.value} checked={consentLevel === opt.value} onChange={() => setConsentLevel(opt.value)} className="mt-0.5 accent-primary" />
-                  <div className="flex items-start gap-3 flex-1">
-                    <Icon className={`h-5 w-5 mt-0.5 flex-shrink-0 ${consentLevel === opt.value ? "" : "text-muted-foreground"}`} />
-                    <div>
-                      <p className="font-semibold">{opt.label}</p>
-                      <p className="text-sm text-muted-foreground mt-0.5">{opt.desc}</p>
-                    </div>
+                <button
+                  key={opt.value}
+                  onClick={() => setConsentLevel(opt.value)}
+                  className="text-left p-5 rounded-xl transition-all flex items-start gap-4"
+                  style={{
+                    background: active ? `color-mix(in srgb, ${opt.color} 8%, transparent)` : "var(--bg-elevated)",
+                    border: `1px solid ${active ? opt.color : "var(--border-subtle)"}`,
+                    borderLeftWidth: 4,
+                    borderLeftColor: opt.color,
+                    boxShadow: active ? `0 0 32px ${opt.glow}` : undefined,
+                  }}
+                >
+                  <opt.Icon className="w-6 h-6 flex-shrink-0 mt-0.5" style={{ color: opt.color }} />
+                  <div className="flex-1">
+                    <p className="font-semibold text-base mb-1">{opt.label}</p>
+                    <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{opt.desc}</p>
                   </div>
-                </label>
+                  {active && <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: opt.color }} />}
+                </button>
               );
             })}
           </div>
+
           <div className="mb-6">
-            <label className="block text-sm font-medium mb-1.5">Label <span className="text-muted-foreground font-normal">(optional)</span></label>
-            <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} className="input w-full" placeholder="e.g. Professional headshot" />
+            <label className="block text-xs font-semibold mb-2 section-label">Label (optional)</label>
+            <input type="text" value={label} onChange={(e) => setLabel(e.target.value)} className="input-mh" placeholder="e.g. Professional headshot" />
           </div>
-          <button onClick={saveFace} disabled={encoding} className="btn btn-primary h-12 w-full text-base gap-2">
-            {encoding ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
-            {encoding ? "Saving…" : "Save face & consent"}
+
+          <button onClick={saveFace} disabled={encoding} className="btn-mh btn-mh-primary w-full justify-center" style={{ padding: "14px 22px" }}>
+            {encoding ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
+            {encoding ? "Saving…" : "Complete Registration"}
           </button>
         </div>
       </DashboardLayout>
     );
   }
 
-  // ─── Step: Multi-angle capture ───
+  // ─── CAPTURE
   if (step === "capture") {
     return (
       <DashboardLayout>
-        <div className="max-w-2xl">
+        <div className="max-w-3xl anim-fade-up">
+          <Stepper step="capture" />
           <div className="mb-6">
-            <h1 className="text-2xl font-bold">Photo {captureStep + 1} of 3</h1>
-            <p className="text-sm text-muted-foreground mt-1">{CAPTURE_INSTRUCTIONS[captureStep]}</p>
+            <div className="section-label mb-2">Step 2 of 3</div>
+            <h1 className="headline-section text-3xl">Photo {captureStep + 1} of 3</h1>
+            <p className="text-base mt-2" style={{ color: "var(--text-secondary)" }}>{CAPTURE_INSTRUCTIONS[captureStep]}</p>
           </div>
-          <div className="flex gap-6">
+          <div className="flex flex-col md:flex-row gap-6">
             <div className="flex-1">
-              <div className="relative rounded-2xl overflow-hidden bg-black border border-border/40 aspect-[4/3]">
-                <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+              <div className="relative rounded-2xl overflow-hidden aspect-[4/3]" style={{ background: "var(--bg-void)", border: "1px solid var(--border-subtle)" }}>
+                <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-40 h-52 rounded-full border-2 border-primary/50 opacity-60" />
+                  <div className="w-44 h-56 rounded-full" style={{ border: "2px solid var(--accent-blue)", opacity: 0.5, boxShadow: "0 0 40px var(--accent-blue-glow)" }} />
                 </div>
               </div>
-              <button onClick={capturePhoto} className="btn btn-primary w-full mt-4 h-12 gap-2">
-                <Camera className="h-5 w-5" /> Capture photo {captureStep + 1}
+              <button onClick={capturePhoto} className="btn-mh btn-mh-primary w-full justify-center mt-4" style={{ padding: "14px 22px" }}>
+                <Camera className="w-5 h-5" /> Capture photo {captureStep + 1}
               </button>
             </div>
-            <div className="w-28 flex flex-col gap-2">
+            <div className="w-full md:w-32 flex md:flex-col gap-3">
               {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className={`rounded-xl aspect-[4/3] flex items-center justify-center border ${capturedFrames[i] ? "border-green-500/30" : "border-border/30 bg-muted/20"}`}>
+                <div
+                  key={i}
+                  className="rounded-full flex-1 md:flex-none w-20 h-20 flex items-center justify-center overflow-hidden"
+                  style={{
+                    background: capturedFrames[i] ? "transparent" : "var(--bg-void)",
+                    border: `2px solid ${capturedFrames[i] ? "var(--accent-green)" : "var(--border-subtle)"}`,
+                    boxShadow: capturedFrames[i] ? "0 0 20px rgba(0,212,138,0.3)" : undefined,
+                  }}
+                >
                   {capturedFrames[i] ? (
-                    <img src={capturedFrames[i]} className="w-full h-full object-cover rounded-xl" alt={`Frame ${i + 1}`} />
+                    <img src={capturedFrames[i]} className="w-full h-full object-cover" alt={`Frame ${i + 1}`} />
                   ) : (
-                    <span className="text-xs text-muted-foreground">{i + 1}</span>
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>{i + 1}</span>
                   )}
                 </div>
               ))}
@@ -369,74 +394,79 @@ export default function RegisterFace() {
     );
   }
 
-  // ─── Step: Liveness challenge ───
+  // ─── LIVENESS
   if (step === "liveness") {
-    const currentChallenge = CHALLENGES[challengeIdx === -1 ? 0 : Math.min(challengeIdx, CHALLENGES.length - 1)];
     const nextChallenge = passed.smile ? (passed.left ? (passed.right ? null : CHALLENGES[2]) : CHALLENGES[1]) : CHALLENGES[0];
 
     return (
       <DashboardLayout>
-        <div className="max-w-2xl">
+        <div className="max-w-3xl anim-fade-up">
+          <Stepper step="liveness" />
           <div className="mb-6">
-            <h1 className="text-2xl font-bold">Liveness Verification</h1>
-            <p className="text-sm text-muted-foreground mt-1">Follow the challenges to verify you're a real person.</p>
+            <div className="section-label mb-2">Step 1 of 3</div>
+            <h1 className="headline-section text-3xl">Liveness Verification</h1>
+            <p className="text-base mt-2" style={{ color: "var(--text-secondary)" }}>Follow the challenges to verify you're a real person.</p>
           </div>
 
-          <div className="flex gap-6">
-            {/* Camera feed */}
+          <div className="flex flex-col md:flex-row gap-6">
             <div className="flex-1">
-              <div className="relative rounded-2xl overflow-hidden bg-black border border-border/40 aspect-[4/3]">
+              <div className="relative rounded-2xl overflow-hidden aspect-[16/10]" style={{ background: "var(--bg-void)", border: "1px solid var(--border-subtle)" }}>
                 <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className={`w-44 h-56 rounded-full border-2 transition-colors ${allPassed ? "border-green-400" : "border-primary/50"} opacity-60`} />
+                  <div
+                    className="w-48 h-60 rounded-full transition-colors"
+                    style={{
+                      border: `2px solid ${allPassed ? "var(--accent-green)" : "var(--accent-blue)"}`,
+                      opacity: 0.6,
+                      boxShadow: `0 0 40px ${allPassed ? "rgba(0,212,138,0.3)" : "var(--accent-blue-glow)"}`,
+                    }}
+                  />
                 </div>
                 {allPassed && (
-                  <div className="absolute inset-0 bg-green-500/10 flex items-center justify-center">
-                    <CheckCircle className="h-12 w-12 text-green-400" />
+                  <div className="absolute inset-0 flex items-center justify-center" style={{ background: "rgba(0,212,138,0.1)" }}>
+                    <CheckCircle className="w-16 h-16 anim-scale-in" style={{ color: "var(--accent-green)" }} />
                   </div>
                 )}
               </div>
 
-              {/* Current instruction */}
               {nextChallenge && !allPassed && (
-                <div className="surface p-3 mt-3 flex items-center gap-3">
-                  <SmilePlus className="h-5 w-5 text-primary flex-shrink-0" />
-                  <p className="text-sm font-medium">{nextChallenge.instruction}</p>
-                  {analyzing && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground ml-auto" />}
+                <div className="glass-card p-4 mt-4 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "var(--accent-blue-glow)", border: "1px solid var(--accent-blue)" }}>
+                    <nextChallenge.Icon className="w-5 h-5" style={{ color: "var(--accent-blue)" }} />
+                  </div>
+                  <p className="text-sm font-medium flex-1">{nextChallenge.instruction}</p>
+                  {analyzing && <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--text-muted)" }} />}
                 </div>
               )}
             </div>
 
-            {/* Sidebar */}
-            <div className="w-52 flex flex-col gap-4">
-              {/* Challenge checklist */}
-              <div className="surface p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Challenges</p>
-                <div className="flex flex-col gap-2">
+            <div className="md:w-56 flex flex-col gap-4">
+              <div className="glass-card p-4">
+                <div className="section-label mb-3">Challenges</div>
+                <div className="flex flex-col gap-2.5">
                   {CHALLENGES.map((c) => (
-                    <div key={c.id} className={`flex items-center gap-2 text-sm ${passed[c.id] ? "text-green-400" : "text-muted-foreground"}`}>
-                      {passed[c.id] ? <CheckCircle className="h-4 w-4 flex-shrink-0" /> : <div className="h-4 w-4 rounded-full border border-muted-foreground/30 flex-shrink-0" />}
+                    <div key={c.id} className="flex items-center gap-2 text-sm" style={{ color: passed[c.id] ? "var(--accent-green)" : "var(--text-muted)" }}>
+                      {passed[c.id]
+                        ? <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                        : <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ border: "1px solid var(--border-subtle)" }} />}
                       {c.label}
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* Live analysis */}
               {liveData && (
-                <div className="surface p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Live analysis</p>
-                  <div className="flex flex-col gap-2.5">
+                <div className="glass-card p-4">
+                  <div className="section-label mb-3">Live analysis</div>
+                  <div className="flex flex-col gap-3">
                     <Meter label="Smile" value={liveData.smile} max={100} unit="%" />
                     <div className="text-xs">
-                      <p className="text-muted-foreground mb-1">Head yaw</p>
+                      <p className="mb-1" style={{ color: "var(--text-muted)" }}>Head yaw</p>
                       <p className="font-mono font-medium">{liveData.yaw.toFixed(1)}°</p>
                     </div>
-                    <div className="flex items-center gap-2 text-xs">
-                      <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className={liveData.eyesOpen ? "text-green-400" : "text-muted-foreground"}>
-                        Eyes {liveData.eyesOpen ? "open" : "closed"}
-                      </span>
+                    <div className="flex items-center gap-2 text-xs" style={{ color: liveData.eyesOpen ? "var(--accent-green)" : "var(--text-muted)" }}>
+                      <Eye className="w-3.5 h-3.5" />
+                      Eyes {liveData.eyesOpen ? "open" : "closed"}
                     </div>
                     <Meter label="Brightness" value={liveData.brightness} max={100} unit="%" />
                     <Meter label="Sharpness" value={liveData.sharpness} max={100} unit="%" />
@@ -444,8 +474,8 @@ export default function RegisterFace() {
                 </div>
               )}
 
-              <button onClick={() => { stopCamera(); setStep("mode"); }} className="btn btn-ghost border border-border/40 h-9 text-xs gap-1.5">
-                <RotateCcw className="h-3.5 w-3.5" /> Cancel
+              <button onClick={() => { stopCamera(); setStep("mode"); }} className="btn-mh btn-mh-ghost text-xs" style={{ padding: "8px 14px" }}>
+                <RotateCcw className="w-3.5 h-3.5" /> Cancel
               </button>
             </div>
           </div>
@@ -454,59 +484,57 @@ export default function RegisterFace() {
     );
   }
 
-  // ─── Step: Mode selection ───
+  // ─── MODE SELECTION
   return (
     <DashboardLayout>
-      <div className="max-w-xl">
+      <div className="max-w-2xl anim-fade-up">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold">Register a Face</h1>
-          <p className="text-sm text-muted-foreground mt-1">Choose how you'd like to register your face.</p>
+          <div className="section-label mb-2">Register a Face</div>
+          <h1 className="headline-section text-3xl md:text-4xl">Add a face to your registry</h1>
+          <p className="text-base mt-2" style={{ color: "var(--text-secondary)" }}>Choose how you'd like to register.</p>
         </div>
 
-        <div className="flex flex-col gap-4 mb-8">
-          <div
+        <div className="flex flex-col gap-4">
+          <button
             onClick={() => { setMode("liveness"); startLiveness(); }}
-            className="surface p-6 cursor-pointer hover:border-primary/40 transition-all flex items-start gap-4 group"
+            className="glass-card glass-card-hover p-6 text-left flex items-start gap-4"
           >
-            <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center flex-shrink-0 group-hover:bg-primary/15 transition-colors">
-              <Camera className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <p className="font-semibold">Camera + Liveness Check</p>
-                <span className="text-xs bg-green-500/10 text-green-400 border border-green-500/20 px-2 py-0.5 rounded-full">Recommended</span>
-              </div>
-              <p className="text-sm text-muted-foreground">Smile, turn left, turn right — proves you're a real person. Marks your face as verified.</p>
-            </div>
-          </div>
-
-          <div className="surface p-6 flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
-              <Upload className="h-6 w-6 text-muted-foreground" />
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "var(--accent-blue-glow)", border: "1px solid var(--accent-blue)" }}>
+              <Camera className="w-6 h-6" style={{ color: "var(--accent-blue)" }} />
             </div>
             <div className="flex-1">
-              <p className="font-semibold mb-1">Upload a photo</p>
-              <p className="text-sm text-muted-foreground mb-3">Manually upload an image. Marks as unverified.</p>
+              <div className="flex items-center gap-2 mb-1.5">
+                <p className="font-semibold text-base">Camera + Liveness Check</p>
+                <span className="badge-mh badge-open text-[0.65rem]" style={{ padding: "2px 8px" }}>RECOMMENDED</span>
+              </div>
+              <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+                Smile, turn left, turn right — proves you're a real person. Marks your face as verified.
+              </p>
+            </div>
+          </button>
+
+          <div className="glass-card p-6 flex items-start gap-4">
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "var(--bg-void)", border: "1px solid var(--border-subtle)" }}>
+              <Upload className="w-6 h-6" style={{ color: "var(--text-muted)" }} />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold mb-1.5">Upload a photo</p>
+              <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>Manually upload an image. Marks as unverified.</p>
               <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
+                ref={fileInputRef} type="file" accept="image/*" className="hidden"
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); }}
               />
               {uploadedImage ? (
                 <div className="flex items-center gap-3">
-                  <img src={uploadedImage} className="w-14 h-14 object-cover rounded-lg border border-border/50" alt="Preview" />
+                  <img src={uploadedImage} className="w-14 h-14 object-cover rounded-lg" style={{ border: "1px solid var(--border-subtle)" }} alt="Preview" />
                   <div>
-                    <p className="text-sm font-medium text-green-400">Photo ready</p>
-                    <button onClick={encodeUpload} className="btn btn-primary h-8 px-3 text-xs mt-1 gap-1">
-                      <Loader2 className="h-3.5 w-3.5 hidden" /> Continue →
-                    </button>
+                    <p className="text-sm font-medium" style={{ color: "var(--accent-green)" }}>Photo ready</p>
+                    <button onClick={() => { setMode("upload"); encodeUpload(); }} className="btn-mh btn-mh-primary text-xs mt-1" style={{ padding: "6px 14px" }}>Continue →</button>
                   </div>
                 </div>
               ) : (
-                <button onClick={() => fileInputRef.current?.click()} className="btn btn-ghost border border-border/50 h-9 px-4 text-sm gap-2">
-                  <Upload className="h-4 w-4" /> Choose photo
+                <button onClick={() => fileInputRef.current?.click()} className="btn-mh btn-mh-ghost">
+                  <Upload className="w-4 h-4" /> Choose photo
                 </button>
               )}
             </div>
@@ -522,11 +550,14 @@ function Meter({ label, value, max, unit }: { label: string; value: number; max:
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="text-xs font-mono font-medium">{value.toFixed(0)}{unit}</p>
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>{label}</p>
+        <p className="text-xs font-mono">{value.toFixed(0)}{unit}</p>
       </div>
-      <div className="h-1 bg-muted rounded-full overflow-hidden">
-        <div className="h-full bg-primary/70 rounded-full transition-all" style={{ width: `${pct}%` }} />
+      <div className="h-1 rounded-full overflow-hidden" style={{ background: "var(--bg-void)" }}>
+        <div
+          className="h-full rounded-full transition-all"
+          style={{ width: `${pct}%`, background: pct > 70 ? "var(--accent-green)" : pct > 40 ? "var(--accent-blue)" : "var(--accent-amber)" }}
+        />
       </div>
     </div>
   );

@@ -1,36 +1,20 @@
 import { useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useListApiKeys } from "@workspace/api-client-react";
-import { Loader2, Terminal, Send, ChevronDown } from "lucide-react";
+import { Loader2, Send, ChevronDown } from "lucide-react";
 
-type Method = "POST";
-type Endpoint = {
-  label: string;
-  method: Method;
-  path: string;
-  defaultBody: string;
-};
+type Endpoint = { label: string; method: "POST"; path: string; defaultBody: string };
 
 const ENDPOINTS: Endpoint[] = [
-  {
-    label: "Check consent by face ID",
-    method: "POST",
-    path: "/api/check",
-    defaultBody: JSON.stringify({ face_id: "face_abc123" }, null, 2),
-  },
-  {
-    label: "Check consent with image",
-    method: "POST",
-    path: "/api/check-image",
-    defaultBody: JSON.stringify({ image: "data:image/jpeg;base64,...", threshold: 0.85 }, null, 2),
-  },
+  { label: "Check consent by face ID", method: "POST", path: "/api/check", defaultBody: JSON.stringify({ face_id: "face_abc123" }, null, 2) },
+  { label: "Check consent with image", method: "POST", path: "/api/check-image", defaultBody: JSON.stringify({ image: "data:image/jpeg;base64,...", threshold: 0.85 }, null, 2) },
 ];
 
 export default function ApiTester() {
   const { data: keysData } = useListApiKeys();
   const keys = keysData ?? [];
 
-  const [selectedKey, setSelectedKey] = useState<string>("");
+  const [selectedKey, setSelectedKey] = useState("");
   const [selectedEndpoint, setSelectedEndpoint] = useState(0);
   const [body, setBody] = useState(ENDPOINTS[0].defaultBody);
   const [response, setResponse] = useState<{ status: number; data: unknown; ms: number } | null>(null);
@@ -58,8 +42,7 @@ export default function ApiTester() {
           "Content-Type": "application/json",
           ...(selectedKey ? { Authorization: `Bearer ${selectedKey}` } : {}),
         },
-        body,
-        credentials: "include",
+        body, credentials: "include",
       });
       const data = await res.json();
       setResponse({ status: res.status, data, ms: Date.now() - start });
@@ -71,92 +54,87 @@ export default function ApiTester() {
 
   return (
     <DashboardLayout>
-      <div className="max-w-3xl flex flex-col gap-6">
+      <div className="flex flex-col gap-8 anim-fade-up">
         <div>
-          <h1 className="text-2xl font-bold">API Tester</h1>
-          <p className="text-sm text-muted-foreground mt-1">Test Malamh API endpoints directly from your dashboard.</p>
+          <div className="section-label mb-2">API</div>
+          <h1 className="headline-section text-3xl md:text-4xl">API Tester</h1>
+          <p className="text-base mt-2" style={{ color: "var(--text-secondary)" }}>Test Malamh API endpoints directly from your dashboard.</p>
         </div>
 
-        <div className="surface p-6 flex flex-col gap-5">
-          {/* Endpoint selector */}
-          <div>
-            <label className="block text-sm font-medium mb-2">Endpoint</label>
-            <div className="relative">
-              <select
-                value={selectedEndpoint}
-                onChange={(e) => handleEndpointChange(Number(e.target.value))}
-                className="input w-full appearance-none pr-8"
-              >
-                {ENDPOINTS.map((ep, i) => (
-                  <option key={i} value={i}>{ep.method} {ep.path} — {ep.label}</option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            </div>
-          </div>
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* LEFT — request */}
+          <div className="glass-card-elevated p-6 flex flex-col gap-5">
+            <div className="section-label">Request</div>
 
-          {/* API key selector */}
-          {keys.length > 0 && (
             <div>
-              <label className="block text-sm font-medium mb-2">API Key <span className="text-muted-foreground font-normal">(optional)</span></label>
+              <label className="block text-xs font-semibold mb-2 section-label">Endpoint</label>
               <div className="relative">
                 <select
-                  value={selectedKey}
-                  onChange={(e) => setSelectedKey(e.target.value)}
-                  className="input w-full appearance-none pr-8"
+                  value={selectedEndpoint}
+                  onChange={(e) => handleEndpointChange(Number(e.target.value))}
+                  className="input-mh appearance-none pr-10"
                 >
-                  <option value="">— None (use session cookie) —</option>
-                  {keys.map((k) => (
-                    <option key={k.id} value={k.keyPreview ?? k.id}>{k.name}</option>
-                  ))}
+                  {ENDPOINTS.map((ep, i) => <option key={i} value={i}>{ep.method} {ep.path}</option>)}
                 </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
               </div>
             </div>
-          )}
 
-          {/* Request body */}
-          <div>
-            <label className="block text-sm font-medium mb-2">Request body (JSON)</label>
-            <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              rows={6}
-              className="input w-full font-mono text-xs resize-none"
-              spellCheck={false}
-            />
+            {keys.length > 0 && (
+              <div>
+                <label className="block text-xs font-semibold mb-2 section-label">API Key (optional)</label>
+                <div className="relative">
+                  <select value={selectedKey} onChange={(e) => setSelectedKey(e.target.value)} className="input-mh appearance-none pr-10">
+                    <option value="">— None (use session cookie) —</option>
+                    {keys.map((k) => <option key={k.id} value={k.keyPreview ?? k.id}>{k.name}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: "var(--text-muted)" }} />
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-semibold mb-2 section-label">Request body (JSON)</label>
+              <textarea
+                value={body} onChange={(e) => setBody(e.target.value)} rows={8}
+                className="input-mh font-mono text-xs resize-none"
+                style={{ fontFamily: "var(--app-font-mono)" }}
+                spellCheck={false}
+              />
+            </div>
+
+            <button onClick={handleSend} disabled={loading} className="btn-mh btn-mh-primary justify-center">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Send className="w-4 h-4" /> Run Check</>}
+            </button>
           </div>
 
-          <button onClick={handleSend} disabled={loading} className="btn btn-primary h-11 gap-2 self-start px-6">
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="h-4 w-4" /> Send request</>}
-          </button>
-        </div>
-
-        {/* Response */}
-        {(response || error) && (
-          <div className="surface p-6">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-semibold flex items-center gap-2">
-                <Terminal className="h-4 w-4 text-muted-foreground" /> Response
-              </h2>
+          {/* RIGHT — response */}
+          <div className="glass-card-elevated p-6 flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <div className="section-label">Response</div>
               {response && (
                 <div className="flex items-center gap-3">
-                  <span className={`text-sm font-mono font-bold ${response.status < 300 ? "text-green-400" : response.status < 500 ? "text-yellow-400" : "text-destructive"}`}>
+                  <span
+                    className="font-mono font-bold text-sm"
+                    style={{ color: response.status < 300 ? "var(--accent-green)" : response.status < 500 ? "var(--accent-amber)" : "var(--accent-red)" }}
+                  >
                     {response.status}
                   </span>
-                  <span className="text-xs text-muted-foreground">{response.ms}ms</span>
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>{response.ms}ms</span>
                 </div>
               )}
             </div>
             {error ? (
-              <p className="text-destructive text-sm">{error}</p>
+              <p className="text-sm" style={{ color: "var(--accent-red)" }}>{error}</p>
+            ) : response ? (
+              <pre className="code-block whitespace-pre overflow-x-auto flex-1">{JSON.stringify(response.data, null, 2)}</pre>
             ) : (
-              <pre className="font-mono text-xs bg-background rounded border border-border/50 p-4 overflow-x-auto text-foreground">
-                {JSON.stringify(response?.data, null, 2)}
-              </pre>
+              <div className="flex-1 flex items-center justify-center text-sm" style={{ color: "var(--text-muted)" }}>
+                Send a request to see the response
+              </div>
             )}
           </div>
-        )}
+        </div>
       </div>
     </DashboardLayout>
   );

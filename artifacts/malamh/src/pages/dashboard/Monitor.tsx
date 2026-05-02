@@ -1,34 +1,23 @@
 import { useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { useListScanResults, useRunMonitorScan, useGetDashboardStats } from "@workspace/api-client-react";
-import { Loader2, ShieldAlert, Eye, Globe, RefreshCw, ExternalLink, CheckCircle } from "lucide-react";
+import { Loader2, Radar, ExternalLink, ShieldOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 
 type ScanPhase = "idle" | "google" | "ai" | "verifying" | "done";
 
-const sourceStyles: Record<string, { label: string; cls: string }> = {
-  google_lens: { label: "Google", cls: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
-  ai_platform: { label: "AI Platform", cls: "bg-purple-500/10 text-purple-400 border-purple-500/20" },
-  demo: { label: "Demo", cls: "bg-muted text-muted-foreground border-border/40" },
+const sourceMeta: Record<string, { label: string; cls: string }> = {
+  google_lens: { label: "Google", cls: "badge-blue" },
+  ai_platform: { label: "Lexica", cls: "badge-mh", },
+  demo: { label: "Demo", cls: "badge-mh" },
 };
 
-const statusBadge = (status: string) => {
-  const s = status.toLowerCase();
-  if (s === "new") return "badge-blocked";
-  if (s === "resolved" || s === "ignored") return "badge-open";
-  return "badge-token";
+const PHASE_LABEL: Record<Exclude<ScanPhase, "idle" | "done">, string> = {
+  google: "Scanning Google…",
+  ai: "Scanning Lexica…",
+  verifying: "Verifying matches…",
 };
-
-const PHASE_LABELS: Record<ScanPhase, string> = {
-  idle: "",
-  google: "Searching Google…",
-  ai: "Scanning AI platforms…",
-  verifying: "Verifying matches with AWS…",
-  done: "Scan complete",
-};
-
-const PHASE_ORDER: ScanPhase[] = ["google", "ai", "verifying", "done"];
 
 export default function Monitor() {
   const { data: scanResults, isLoading } = useListScanResults();
@@ -39,14 +28,8 @@ export default function Monitor() {
   const [scanPhase, setScanPhase] = useState<ScanPhase>("idle");
 
   const results = (scanResults?.results ?? scanResults ?? []) as Array<{
-    id: string;
-    sourceUrl: string;
-    sourceDomain: string;
-    pageTitle?: string | null;
-    matchScore: number;
-    source?: string;
-    status: string;
-    createdAt: string;
+    id: string; sourceUrl: string; sourceDomain: string; pageTitle?: string | null;
+    matchScore: number; source?: string; status: string; createdAt: string;
   }>;
 
   const handleScan = async () => {
@@ -55,11 +38,8 @@ export default function Monitor() {
     let pi = 0;
     const interval = setInterval(() => {
       pi++;
-      if (pi < phases.length) {
-        setScanPhase(phases[pi]);
-      } else {
-        clearInterval(interval);
-      }
+      if (pi < phases.length) setScanPhase(phases[pi]);
+      else clearInterval(interval);
     }, 3000);
 
     runScan.mutate(undefined, {
@@ -79,131 +59,110 @@ export default function Monitor() {
     });
   };
 
-  const scanning = scanPhase !== "idle";
+  const scanning = scanPhase !== "idle" && scanPhase !== "done";
 
   return (
     <DashboardLayout>
-      <div className="max-w-3xl flex flex-col gap-8">
-        <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-8 anim-fade-up">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Monitor</h1>
-            <p className="text-sm text-muted-foreground mt-1">Scan for unauthorized use of your likeness across the web.</p>
+            <div className="section-label mb-2">Monitor</div>
+            <h1 className="headline-section text-3xl md:text-4xl">Web Monitor</h1>
+            <p className="text-base mt-2" style={{ color: "var(--text-secondary)" }}>
+              Hunt the web for unauthorized use of your likeness.
+            </p>
           </div>
           <button
-            onClick={handleScan}
-            disabled={scanning}
-            className="btn btn-primary gap-2 h-9 px-4 text-sm"
+            onClick={handleScan} disabled={scanning}
+            className="btn-mh btn-mh-primary group"
           >
-            {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            {scanning ? "Scanning…" : "Run scan"}
+            {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Radar className="w-4 h-4 group-hover:animate-spin" />}
+            {scanning ? "Scanning…" : "Scan Now"}
           </button>
         </div>
 
-        {/* Scan progress */}
+        {/* Scanning radar */}
         {scanning && (
-          <div className="surface p-5">
-            <p className="text-sm font-medium mb-4">{PHASE_LABELS[scanPhase]}</p>
-            <div className="flex items-center gap-0">
-              {PHASE_ORDER.map((phase, i) => {
-                const phaseIndex = PHASE_ORDER.indexOf(scanPhase);
-                const isDone = i < phaseIndex;
-                const isActive = i === phaseIndex;
-                return (
-                  <div key={phase} className="flex items-center flex-1 last:flex-none">
-                    <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                      isDone ? "border-green-500 bg-green-500/10" : isActive ? "border-primary bg-primary/10" : "border-border/40"
-                    }`}>
-                      {isDone ? (
-                        <CheckCircle className="h-3.5 w-3.5 text-green-400" />
-                      ) : isActive ? (
-                        <Loader2 className="h-3.5 w-3.5 text-primary animate-spin" />
-                      ) : (
-                        <span className="text-xs text-muted-foreground">{i + 1}</span>
-                      )}
-                    </div>
-                    {i < PHASE_ORDER.length - 1 && (
-                      <div className={`flex-1 h-0.5 mx-1 transition-all ${isDone ? "bg-green-500/40" : "bg-border/30"}`} />
-                    )}
-                  </div>
-                );
-              })}
+          <div className="glass-card-elevated p-10 text-center">
+            <div className="relative w-32 h-32 mx-auto mb-6">
+              <div className="absolute inset-0 rounded-full" style={{ border: "1px solid var(--accent-blue)", opacity: 0.4 }} />
+              <div className="absolute inset-3 rounded-full" style={{ border: "1px solid var(--accent-blue)", opacity: 0.3 }} />
+              <div className="absolute inset-6 rounded-full" style={{ border: "1px solid var(--accent-blue)", opacity: 0.2 }} />
+              <div
+                className="absolute inset-0 rounded-full anim-radar"
+                style={{
+                  background: "conic-gradient(from 0deg, transparent 0%, transparent 70%, var(--accent-blue) 95%, transparent 100%)",
+                  filter: "blur(2px)",
+                }}
+              />
+              <Radar className="absolute inset-0 m-auto w-10 h-10" style={{ color: "var(--accent-blue)" }} />
             </div>
-            <div className="flex justify-between mt-2">
-              {["Google", "AI platforms", "AWS verify", "Complete"].map((label) => (
-                <p key={label} className="text-xs text-muted-foreground" style={{ width: "25%" }}>{label}</p>
-              ))}
-            </div>
+            <p className="text-base font-medium" style={{ color: "var(--accent-blue)" }}>
+              {scanPhase !== "done" && PHASE_LABEL[scanPhase as Exclude<ScanPhase, "idle" | "done">]}
+            </p>
           </div>
         )}
 
-        {/* Summary cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          {[
-            { label: "Total Checks", value: stats?.totalChecks ?? "—", icon: Eye },
-            { label: "Blocked Requests", value: stats?.blockedCount ?? "—", icon: ShieldAlert },
-            { label: "Scan Findings", value: Array.isArray(results) ? results.length : "—", icon: Globe },
-          ].map((c) => {
-            const Icon = c.icon;
-            return (
-              <div key={c.label} className="surface p-5">
-                <Icon className="h-4 w-4 text-muted-foreground mb-3" />
-                <p className="text-2xl font-bold">{c.value}</p>
-                <p className="text-xs text-muted-foreground mt-1">{c.label}</p>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Scan results */}
-        <div className="surface p-6">
-          <h2 className="font-semibold mb-5 flex items-center gap-2">
-            <Globe className="h-4 w-4 text-muted-foreground" /> Web Scan Results
-          </h2>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : !Array.isArray(results) || results.length === 0 ? (
-            <div className="text-center py-12">
-              <ShieldAlert className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground mb-4">No scan results yet.</p>
-              <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-                Run a scan to search for your likeness across public websites and AI generation platforms.
-              </p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-4">
-              {results.map((result) => {
-                const src = result.source ?? "demo";
-                const style = sourceStyles[src] ?? sourceStyles.demo;
-                return (
-                  <div key={result.id} className="flex items-start gap-4 py-3 border-b border-border/30 last:border-0">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <p className="text-sm font-medium truncate">{result.pageTitle ?? result.sourceDomain}</p>
-                        <span className={`text-xs px-2 py-0.5 rounded-full border font-medium flex-shrink-0 ${statusBadge(result.status)}`}>
-                          {result.status.toLowerCase().replace("_", " ")}
-                        </span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full border font-medium flex-shrink-0 ${style.cls}`}>
-                          {style.label}
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground truncate">{result.sourceUrl}</p>
-                      <div className="flex items-center gap-3 mt-1.5">
-                        <span className="text-xs text-muted-foreground">Match: {(result.matchScore * 100).toFixed(0)}%</span>
-                        <span className="text-xs text-muted-foreground">{new Date(result.createdAt).toLocaleDateString()}</span>
-                      </div>
-                    </div>
-                    <a href={result.sourceUrl} target="_blank" rel="noopener noreferrer" className="btn btn-ghost h-7 w-7 p-0 flex-shrink-0">
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
+        {/* Results grid */}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--accent-blue)" }} />
+          </div>
+        ) : !Array.isArray(results) || results.length === 0 ? (
+          <div className="glass-card p-16 text-center">
+            <Radar className="w-14 h-14 mx-auto mb-4 opacity-30" style={{ color: "var(--text-muted)" }} />
+            <h3 className="headline-section text-xl mb-2">No matches found</h3>
+            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+              Your face is safe — for now.
+            </p>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {results.map((result) => {
+              const src = result.source ?? "demo";
+              const m = sourceMeta[src] ?? sourceMeta.demo;
+              const score = Math.round(result.matchScore * 100);
+              const scoreColor = score >= 90 ? "var(--accent-red)" : score >= 70 ? "var(--accent-amber)" : "var(--accent-green)";
+              return (
+                <div key={result.id} className="glass-card glass-card-hover p-5 flex flex-col gap-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className={`badge-mh ${m.cls}`}>{m.label}</span>
+                    <ScoreCircle pct={score} color={scoreColor} />
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                  <p className="text-sm font-medium leading-snug" style={{ color: "var(--text-primary)" }}>
+                    {result.pageTitle ?? result.sourceDomain}
+                  </p>
+                  <p className="text-xs font-mono truncate" style={{ color: "var(--text-muted)" }}>{result.sourceUrl}</p>
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>{new Date(result.createdAt).toLocaleDateString()}</p>
+                  <div className="flex items-center gap-2 mt-2 pt-3" style={{ borderTop: "1px solid var(--border-subtle)" }}>
+                    <a href={result.sourceUrl} target="_blank" rel="noopener noreferrer" className="btn-mh btn-mh-ghost text-xs flex-1 justify-center" style={{ padding: "6px 10px" }}>
+                      <ExternalLink className="w-3 h-3" /> Visit
+                    </a>
+                    <button className="btn-mh btn-mh-danger text-xs flex-1 justify-center" style={{ padding: "6px 10px" }}>
+                      <ShieldOff className="w-3 h-3" /> Takedown
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </DashboardLayout>
+  );
+}
+
+function ScoreCircle({ pct, color }: { pct: number; color: string }) {
+  const r = 16;
+  const c = 2 * Math.PI * r;
+  const dash = (pct / 100) * c;
+  return (
+    <div className="relative w-10 h-10">
+      <svg width="40" height="40" viewBox="0 0 40 40" className="-rotate-90">
+        <circle cx="20" cy="20" r={r} stroke="var(--border-subtle)" strokeWidth="3" fill="none" />
+        <circle cx="20" cy="20" r={r} stroke={color} strokeWidth="3" fill="none" strokeLinecap="round" strokeDasharray={`${dash} ${c}`} />
+      </svg>
+      <span className="absolute inset-0 flex items-center justify-center text-[0.65rem] font-bold" style={{ color }}>{pct}</span>
+    </div>
   );
 }
