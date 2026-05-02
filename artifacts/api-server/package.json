@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@aws-sdk/client-rekognition": "^3.1041.0",
+    "@clerk/express": "^2.1.12",
+    "@clerk/shared": "^4.9.0",
     "@types/bcryptjs": "^3.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.1.0",
@@ -21,6 +23,7 @@
     "cors": "^2",
     "drizzle-orm": "catalog:",
     "express": "^5",
+    "http-proxy-middleware": "^3.0.5",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.1.1",
     "pino": "^9",

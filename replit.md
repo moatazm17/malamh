@@ -9,10 +9,10 @@ Full-stack facial consent registry web app. Individuals register their face and 
 ## Stack
 
 - **Frontend**: React + Vite (`artifacts/malamh`) — dark-only theme, Tailwind CSS v4, shadcn/ui components, Wouter routing, TanStack Query
-- **Backend**: Express 5 API server (`artifacts/api-server`) — JWT auth (httpOnly cookie), Drizzle ORM, Zod validation
+- **Backend**: Express 5 API server (`artifacts/api-server`) — Clerk auth (`@clerk/express` middleware), Drizzle ORM, Zod validation
 - **Database**: PostgreSQL + Drizzle ORM (`lib/db`)
 - **API Contract**: OpenAPI spec → Orval codegen → React Query hooks (`lib/api-client-react`) + Zod schemas (`lib/api-zod`)
-- **Auth**: JWT in `malamh_session` cookie, `SESSION_SECRET` env var
+- **Auth**: Clerk Auth (free on Replit, no MAU cap) — Google OAuth + email/password + verification + password reset built-in. Local `users` row is lazily provisioned on first authenticated request via `resolveOrCreateUser` in `lib/auth.ts`, keyed by `users.clerk_id`. Pre-existing rows are linked by email **only when** Clerk's primary email is verified (anti-takeover guard). `users.is_admin` controls `requireAdmin` middleware.
 - **Face matching**: AWS Rekognition (collection: `malameh-faces`) with mock/demo fallback
 - **Payments**: Stripe via Replit Connectors (`artifacts/api-server/src/lib/stripe-client.ts`)
 - **Web scanning**: SerpAPI Google Lens + Lexica.art + AWS Rekognition verification
@@ -52,10 +52,7 @@ lib/
 
 | Route | Auth | Description |
 |---|---|---|
-| POST /api/auth/register | — | Create account |
-| POST /api/auth/login | — | Login, sets cookie |
-| POST /api/auth/logout | — | Clear cookie |
-| GET /api/auth/me | session | Current user |
+| GET /api/auth/me | session | Current user (Clerk session via cookie). Lazily creates local row + FREE subscription on first call. |
 | GET /api/internal/faces | session | List registered faces |
 | POST /api/internal/faces | session | Register face (plan limit enforced) |
 | POST /api/internal/embed | session | Generate embedding from base64 image |
@@ -89,7 +86,7 @@ lib/
 ## Frontend Pages
 
 - `/` — Landing page
-- `/login`, `/register` — Auth pages
+- `/sign-in/*?`, `/sign-up/*?` — Clerk-hosted auth pages (branded dark theme, Malamh shield logo). `/login` and `/register` are kept as redirects to the new routes for back-compat.
 - `/playground` — Live API demo (no auth needed)
 - `/docs` — API reference
 - `/pricing` — Pricing plans with Stripe checkout buttons
@@ -108,7 +105,8 @@ lib/
 
 ## Environment Variables / Secrets
 
-- `SESSION_SECRET` — JWT signing secret
+- `CLERK_SECRET_KEY`, `CLERK_PUBLISHABLE_KEY`, `VITE_CLERK_PUBLISHABLE_KEY` — Clerk auth (auto-provisioned)
+- `SESSION_SECRET` — legacy (kept for old API key signing paths only)
 - `DATABASE_URL` — PostgreSQL connection string (auto-provided)
 - `AWS_ACCESS_KEY_ID` — AWS credentials for Rekognition
 - `AWS_SECRET_ACCESS_KEY` — AWS credentials for Rekognition

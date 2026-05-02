@@ -1,6 +1,12 @@
+@layer theme, base, clerk, components, utilities;
 @import "tailwindcss";
+@import "@clerk/themes/shadcn.css";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
+
+.cl-formFieldInput::placeholder { color: #555566; opacity: 1; }
+.cl-formFieldInput:focus { outline: none; box-shadow: 0 0 0 2px rgba(77,124,255,0.4); border-color: #4d7cff; }
+.cl-socialButtonsBlockButton:hover { background: #1a1a24 !important; border-color: #2a2a4a !important; }
 
 @custom-variant dark (&:is(.dark *));
 

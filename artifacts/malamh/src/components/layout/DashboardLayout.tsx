@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
-import { useGetMe, useLogout } from "@workspace/api-client-react";
+import { useClerk } from "@clerk/react";
+import { useGetMe } from "@workspace/api-client-react";
 import {
   LayoutGrid, Camera, Activity as ActivityIcon, Key, Play, Settings as SettingsIcon,
   LogOut, Loader2, Webhook, Radar, Megaphone,
@@ -22,11 +23,12 @@ const navItems = [
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
   const { data: user, isLoading, error } = useGetMe();
-  const logout = useLogout();
+  const { signOut } = useClerk();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
-    if (error) setLocation("/login");
+    if (error) setLocation("/sign-in");
   }, [error, setLocation]);
 
   if (isLoading) {
@@ -38,7 +40,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   }
   if (!user) return null;
 
-  const handleLogout = () => logout.mutate(undefined, { onSuccess: () => setLocation("/login") });
+  const handleLogout = async () => {
+    setSigningOut(true);
+    try {
+      await signOut({ redirectUrl: `${import.meta.env.BASE_URL.replace(/\/$/, "")}/` });
+    } finally {
+      setSigningOut(false);
+    }
+  };
 
   // Plan badge — best guess from user object, fallback FREE
   const plan = ((user as any).plan as string | undefined)?.toUpperCase() ?? "FREE";
@@ -105,11 +114,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             )}
           </div>
           <button
-            onClick={handleLogout} disabled={logout.isPending}
+            onClick={handleLogout} disabled={signingOut}
             className="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium rounded-lg transition-colors hover:bg-white/5"
             style={{ color: "var(--text-secondary)" }}
           >
-            {logout.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+            {signingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
             Log out
           </button>
         </div>
