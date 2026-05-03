@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { facesTable, accessLogsTable, consentTokensTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 import { z } from "zod";
-import { authenticateApiKey, getRequesterIp } from "../lib/auth";
+import { authenticateApiKey, getRequesterIp, requireSession } from "../lib/auth";
 import { mockEmbedding, matchAgainstRegistry, isMockMode } from "../lib/face-service";
 import { searchFacesByImage } from "../lib/rekognition";
 import { cuid, generateToken } from "../lib/id";
@@ -14,9 +14,29 @@ import { checkMonthlyQuota } from "../lib/plan-limits";
 const router = Router();
 
 function getBaseUrl(req: any): string {
-  const host = req.headers.host || "localhost";
-  const proto = req.headers["x-forwarded-proto"] || "http";
+  const fwdHost = req.headers["x-forwarded-host"];
+  const host =
+    (typeof fwdHost === "string" ? fwdHost.split(",")[0].trim() : undefined) ||
+    req.headers.host ||
+    "localhost";
+  const fwdProto = req.headers["x-forwarded-proto"];
+  const proto =
+    (typeof fwdProto === "string" ? fwdProto.split(",")[0].trim() : undefined) ||
+    "http";
   return `${proto}://${host}`;
+}
+
+function isInvalidImageError(err: any): boolean {
+  const msg = String(err?.message ?? err ?? "").toLowerCase();
+  const name = String(err?.name ?? "").toLowerCase();
+  return (
+    name.includes("invalidimage") ||
+    name.includes("invalidparameter") ||
+    msg.includes("invalid image") ||
+    msg.includes("image format") ||
+    msg.includes("imagetoolarge") ||
+    msg.includes("no faces")
+  );
 }
 
 /**
@@ -106,6 +126,10 @@ router.post("/v1/check-face", async (req, res) => {
   try {
     match = await resolveMatch(imageBytes);
   } catch (err: any) {
+    if (isInvalidImageError(err)) {
+      res.status(400).json({ error: "BadRequest", message: "Invalid or unreadable image. Provide a JPEG/PNG containing a clear face." });
+      return;
+    }
     res.status(500).json({ error: "MatchError", message: err.message ?? "Face matching failed" });
     return;
   }
@@ -202,8 +226,32 @@ router.post("/v1/check-face-with-token", async (req, res) => {
     return;
   }
 
+  // SECURITY: re-match the submitted image and verify it belongs to the same
+  // face the token was issued for. Without this, a stolen/leaked one-time
+  // token could be used to "approve" a completely different person's image.
+  const imageBytes = Buffer.from(parsed.data.imageBase64.replace(/^data:[^,]+,/, ""), "base64");
+  let match: Awaited<ReturnType<typeof resolveMatch>>;
+  try {
+    match = await resolveMatch(imageBytes);
+  } catch (err: any) {
+    if (isInvalidImageError(err)) {
+      res.status(400).json({ error: "BadRequest", message: "Invalid or unreadable image. Provide a JPEG/PNG containing a clear face." });
+      return;
+    }
+    res.status(500).json({ error: "MatchError", message: err.message ?? "Face matching failed" });
+    return;
+  }
+
+  if (!match.matched || match.faceId !== ct.faceId) {
+    res.status(400).json({
+      error: "TokenFaceMismatch",
+      message: "The submitted image does not match the face this token was issued for.",
+    });
+    return;
+  }
+
   await db.update(consentTokensTable).set({ used: true }).where(eq(consentTokensTable.id, ct.id));
-  res.json({ status: "open", matchScore: 1.0, authUrl: null });
+  res.json({ status: "open", matchScore: match.score, authUrl: null });
 });
 
 router.post("/v1/request-consent", async (req, res) => {
@@ -246,8 +294,8 @@ router.post("/v1/request-consent", async (req, res) => {
   res.status(201).json({ token, authUrl: `${getBaseUrl(req)}/consent/approve/${token}`, expiresAt });
 });
 
-// Internal match endpoint (playground + AI studio)
-router.post("/internal/match", async (req, res) => {
+// Internal match endpoint (playground + AI studio) — session-only, never API-key
+router.post("/internal/match", requireSession, async (req, res) => {
   const { imageBase64, requesterName = "Playground", purpose } = req.body;
   if (!imageBase64) {
     res.status(400).json({ error: "BadRequest", message: "imageBase64 required" });
@@ -260,6 +308,10 @@ router.post("/internal/match", async (req, res) => {
   try {
     match = await resolveMatch(imageBytes);
   } catch (err: any) {
+    if (isInvalidImageError(err)) {
+      res.status(400).json({ error: "BadRequest", message: "Invalid or unreadable image. Provide a JPEG/PNG containing a clear face." });
+      return;
+    }
     res.status(500).json({ error: "MatchError", message: err.message ?? "Face matching failed" });
     return;
   }
@@ -301,7 +353,7 @@ router.post("/internal/match", async (req, res) => {
   res.json({ status, matchScore: match.score, authUrl, tokenId, mock: isMockMode() });
 });
 
-router.post("/internal/consent-check", async (req, res) => {
+router.post("/internal/consent-check", requireSession, async (req, res) => {
   const { imageBase64, prompt, requesterName = "AI Studio" } = req.body;
   if (!imageBase64) {
     res.status(400).json({ error: "BadRequest", message: "imageBase64 required" });
@@ -314,6 +366,10 @@ router.post("/internal/consent-check", async (req, res) => {
   try {
     match = await resolveMatch(imageBytes);
   } catch (err: any) {
+    if (isInvalidImageError(err)) {
+      res.status(400).json({ error: "BadRequest", message: "Invalid or unreadable image. Provide a JPEG/PNG containing a clear face." });
+      return;
+    }
     res.status(500).json({ error: "MatchError", message: err.message ?? "Face matching failed" });
     return;
   }
