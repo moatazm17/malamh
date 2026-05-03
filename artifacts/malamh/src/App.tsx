@@ -194,6 +194,14 @@ function ClerkQueryClientCacheInvalidator() {
   return null;
 }
 
+function ScrollToTop() {
+  const [location] = useLocation();
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [location]);
+  return null;
+}
+
 function AppRoutes() {
   return (
     <Switch>
@@ -249,6 +257,7 @@ function ClerkProviderWithRoutes() {
       <QueryClientProvider client={queryClient}>
         <ClerkQueryClientCacheInvalidator />
         <TooltipProvider>
+          <ScrollToTop />
           <AppRoutes />
           <Toaster />
         </TooltipProvider>
