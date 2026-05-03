@@ -1,5 +1,4 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "ckC_0ZWrzAk61y2mefy9R"
@@ -18,3 +17,27 @@ id = "HZySV3pcnQLvNf2eM_xul"
 uri = "file://artifacts/malamh/public/demo/persona-open.png"
 type = "image"
 title = "demo persona open"
+
+[[generated]]
+id = "EN95MPrMYdUZZpB5P_hDe"
+uri = "file://attached_assets/generated_images/generated_image.png"
+type = "image"
+title = "generated_image"
+
+[[outputs]]
+id = "ytPy13T9aCEqi_SKYFejh"
+uri = "file://attached_assets/logo_concepts/A_face_mesh_M.png"
+type = "image"
+title = "Concept A — Face-mesh M (closest to your current logo, more techy)"
+
+[[outputs]]
+id = "W334QXpxQZm4X7JqRKDLf"
+uri = "file://attached_assets/logo_concepts/B_sentinel_eye.png"
+type = "image"
+title = "Concept B — Sentinel Eye (watchful guardian, very on-theme)"
+
+[[outputs]]
+id = "b4wLPPANwb6PQDLtR3PEn"
+uri = "file://attached_assets/logo_concepts/C_consent_stamp.png"
+type = "image"
+title = "Concept C — Consent Stamp (split face = allow/block metaphor)"
