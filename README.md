@@ -55,10 +55,10 @@ This project was built end-to-end with [Replit Agent](https://replit.com/agent).
 
 ## Try it
 
-- **Live:** _[deploy URL goes here]_
+- **Live:** [malamh.replit.app](https://malamh.replit.app/)
 - **API check (curl):**
   ```bash
-  curl -X POST https://your-deploy.replit.app/api/v1/check-face \
+  curl -X POST https://malamh.replit.app/api/v1/check-face \
     -H "Authorization: Bearer <api-key>" \
     -F "image=@photo.jpg"
   ```
