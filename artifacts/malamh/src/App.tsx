@@ -183,7 +183,12 @@ function ClerkQueryClientCacheInvalidator() {
   useEffect(() => {
     const unsubscribe = addListener(({ user }) => {
       const userId = user?.id ?? null;
-      if (prevUserIdRef.current !== undefined && prevUserIdRef.current !== userId) {
+      const prev = prevUserIdRef.current;
+      // Only clear on a true user switch (signed-in user A → signed-in user B).
+      // Skip the anonymous → signed-in transition (initial sign-in) to avoid
+      // racing the post-signin /auth/me fetch and forcing a second cold load.
+      // Skip the signed-in → anonymous transition (sign-out clears cache elsewhere).
+      if (prev != null && userId != null && prev !== userId) {
         qc.clear();
       }
       prevUserIdRef.current = userId;
