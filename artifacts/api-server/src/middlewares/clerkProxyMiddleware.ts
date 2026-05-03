@@ -66,6 +66,10 @@ export function clerkProxyMiddleware(): RequestHandler {
   return createProxyMiddleware({
     target: CLERK_FAPI,
     changeOrigin: true,
+    // Strip the Domain attribute from any Set-Cookie headers Clerk returns,
+    // so cookies become host-only on the proxy domain (e.g. malamh.replit.app)
+    // instead of being tagged for clerk.accounts.dev and silently dropped by the browser.
+    cookieDomainRewrite: "",
     pathRewrite: (path: string) =>
       path.replace(new RegExp(`^${CLERK_PROXY_PATH}`), ""),
     on: {
