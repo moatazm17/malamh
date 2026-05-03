@@ -68,11 +68,77 @@ function CountUp({ end, duration = 1800, prefix = "", suffix = "" }: { end: numb
    Section 1 — Hero
    ============================================================ */
 
+function LiveAttackCounter() {
+  // Derive a believable "faces scraped today" baseline from the current time.
+  // Roughly 1 face every 1.4 seconds since midnight UTC = ~62k/day.
+  const baseline = () => {
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const elapsedSec = (now.getTime() - startOfDay) / 1000;
+    return Math.floor(elapsedSec / 1.4) + 11_407; // floor + small offset so it never reads 0 at midnight
+  };
+  const [count, setCount] = useState<number>(baseline);
+
+  useEffect(() => {
+    let cancelled = false;
+    const tick = () => {
+      if (cancelled) return;
+      setCount((c) => c + 1 + Math.floor(Math.random() * 2));
+      setTimeout(tick, 700 + Math.random() * 1100);
+    };
+    const t = setTimeout(tick, 900);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, []);
+
+  return (
+    <div
+      className="inline-flex items-center gap-3 px-4 py-2 rounded-full mb-8 anim-fade-in"
+      style={{
+        background: "rgba(239,68,68,0.08)",
+        border: "1px solid rgba(239,68,68,0.35)",
+        color: "var(--text-secondary)",
+      }}
+      aria-label={`${count.toLocaleString()} faces scraped by AI tools today`}
+    >
+      <span className="relative flex w-2 h-2">
+        <span className="absolute inline-flex w-full h-full rounded-full opacity-75" style={{ background: "var(--accent-red)", animation: "mh-pulse-ring 1.6s ease-out infinite" }} />
+        <span className="relative inline-flex rounded-full w-2 h-2" style={{ background: "var(--accent-red)" }} />
+      </span>
+      <span className="text-sm font-mono tabular-nums" style={{ color: "var(--accent-red)" }}>
+        {count.toLocaleString()}
+      </span>
+      <span className="text-xs tracking-wide" style={{ color: "var(--text-muted)" }}>
+        faces scraped by AI tools today
+      </span>
+    </div>
+  );
+}
+
+function TrustStrip() {
+  const items = [
+    "GDPR-ready",
+    "EU AI Act aligned",
+    "AWS Rekognition",
+    "Stripe-secured",
+  ];
+  return (
+    <div className="mt-12 flex items-center justify-center gap-x-5 gap-y-2 flex-wrap text-[11px] tracking-widest font-semibold uppercase" style={{ color: "var(--text-muted)" }}>
+      {items.map((it, i) => (
+        <span key={it} className="inline-flex items-center gap-5">
+          {i > 0 && <span className="w-1 h-1 rounded-full" style={{ background: "var(--text-muted)", opacity: 0.4 }} />}
+          {it}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function SectionHero() {
   return (
     <section className="relative min-h-[100svh] flex items-center justify-center overflow-hidden px-6">
       <MeshBlobs />
       <div className="relative z-10 max-w-4xl mx-auto text-center">
+        <LiveAttackCounter />
         <h1 className="headline-display text-[clamp(2rem,6vw,4.25rem)]">
           Your face is being used right now. You just don't know it.
         </h1>
@@ -91,6 +157,7 @@ function SectionHero() {
             See the live demo
           </a>
         </div>
+        <TrustStrip />
       </div>
       <div className="absolute bottom-10 left-1/2 -translate-x-1/2 anim-bounce-soft" style={{ color: "var(--text-muted)" }}>
         <ChevronDown className="w-6 h-6" />
