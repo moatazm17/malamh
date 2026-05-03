@@ -5,6 +5,7 @@ import { useScrollReveal } from "@/hooks/use-scroll-reveal";
 import {
   ChevronDown, Radar, Bell, FileText, CheckCircle2,
   ScanLine, ToggleRight, Shield, ArrowRight, XCircle, KeyRound, Loader2, Sparkles,
+  Upload, Wand2, Lock, Unlock,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
@@ -123,7 +124,24 @@ type DemoResult = {
   authUrl: string | null;
 };
 
-type DemoPhase = "idle" | "uploading" | "matching" | "checking" | "done" | "error";
+/**
+ * The demo plays out as three acts:
+ *   1. REGISTER  — scan & index the persona's face
+ *   2. CONSENT   — they choose one of three consent levels
+ *   3. AI USE    — an AI image generator tries to use them; the registry decides
+ */
+type DemoStep =
+  | "idle"
+  | "reg-scan"   | "reg-done"
+  | "consent-pick" | "consent-set"
+  | "ai-prompt"  | "ai-checking" | "verdict"
+  | "error";
+
+const ACT_OF: Record<Exclude<DemoStep, "idle" | "error">, 1 | 2 | 3> = {
+  "reg-scan": 1, "reg-done": 1,
+  "consent-pick": 2, "consent-set": 2,
+  "ai-prompt": 3, "ai-checking": 3, "verdict": 3,
+};
 
 function isDemoResult(x: unknown): x is DemoResult {
   if (!x || typeof x !== "object") return false;
@@ -135,6 +153,8 @@ function isDemoResult(x: unknown): x is DemoResult {
     !!o.persona && typeof (o.persona as { name?: unknown }).name === "string"
   );
 }
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 function DemoPersonaCard({
   persona, active, disabled, onPick,
@@ -173,44 +193,113 @@ function DemoStatusIcon({ status }: { status: DemoResult["status"] }) {
   return <KeyRound className="w-7 h-7" style={{ color: "var(--accent-blue)" }} />;
 }
 
+/* ---------- Act helpers ---------- */
+
+function ActProgress({ act }: { act: 1 | 2 | 3 | null }) {
+  const items: { n: 1 | 2 | 3; label: string }[] = [
+    { n: 1, label: "Register face" },
+    { n: 2, label: "Set consent" },
+    { n: 3, label: "AI tries to use" },
+  ];
+  return (
+    <div className="flex items-center justify-between gap-3 mb-6">
+      {items.map((it, i) => {
+        const state = act === null ? "todo" : act === it.n ? "active" : act > it.n ? "done" : "todo";
+        const color =
+          state === "active" ? "var(--accent-blue)" :
+          state === "done" ? "#22c55e" :
+          "var(--text-muted)";
+        return (
+          <div key={it.n} className="flex items-center gap-3 flex-1 min-w-0">
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 transition-all"
+              style={{
+                background: state === "todo" ? "var(--bg-secondary)" : `${color}22`,
+                color,
+                border: `1.5px solid ${color}`,
+                boxShadow: state === "active" ? `0 0 18px ${color}66` : undefined,
+              }}
+            >
+              {state === "done" ? <CheckCircle2 className="w-4 h-4" /> : it.n}
+            </div>
+            <div className="text-xs font-semibold truncate" style={{ color }}>{it.label}</div>
+            {i < items.length - 1 && (
+              <div className="hidden sm:block flex-1 h-px" style={{ background: "var(--border-subtle)" }} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const CONSENT_OPTIONS = [
+  { key: "blocked", icon: Lock,        label: "BLOCKED",        sub: "No AI may use my face",      color: "var(--accent-red)" },
+  { key: "token",   icon: KeyRound,    label: "TOKEN_REQUIRED", sub: "Approve every request",      color: "var(--accent-blue)" },
+  { key: "open",    icon: Unlock,      label: "OPEN",           sub: "Editorial use allowed",      color: "#22c55e" },
+] as const;
+
+/* ---------- The cinematic stage ---------- */
+
 function SectionLiveDemo() {
   const [picked, setPicked] = useState<DemoPersona | null>(null);
-  const [phase, setPhase] = useState<DemoPhase>("idle");
+  const [step, setStep] = useState<DemoStep>("idle");
   const [result, setResult] = useState<DemoResult | null>(null);
+  const runId = useRef(0);
 
-  const run = async (persona: DemoPersona) => {
+  const reset = () => {
+    runId.current += 1;
+    setPicked(null);
+    setResult(null);
+    setStep("idle");
+  };
+
+  const play = async (persona: DemoPersona) => {
+    runId.current += 1;
+    const myRun = runId.current;
+    const alive = () => runId.current === myRun;
+
     setPicked(persona);
     setResult(null);
-    setPhase("uploading");
-    await new Promise((r) => setTimeout(r, 600));
-    setPhase("matching");
+
+    // Act 1 — Register
+    setStep("reg-scan"); await sleep(1700); if (!alive()) return;
+    setStep("reg-done"); await sleep(900);  if (!alive()) return;
+
+    // Act 2 — Consent
+    setStep("consent-pick"); await sleep(900); if (!alive()) return;
+    setStep("consent-set");  await sleep(1100); if (!alive()) return;
+
+    // Act 3 — AI request
+    setStep("ai-prompt"); await sleep(900); if (!alive()) return;
+    setStep("ai-checking");
     try {
       const [resp] = await Promise.all([
         apiFetch("/v1/demo/check", {
           method: "POST",
           body: JSON.stringify({ persona: persona.slug }),
         }),
-        new Promise((r) => setTimeout(r, 900)),
+        sleep(1100),
       ]);
+      if (!alive()) return;
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data: unknown = await resp.json();
       if (!isDemoResult(data)) throw new Error("Malformed response");
-      setPhase("checking");
-      await new Promise((r) => setTimeout(r, 500));
       setResult(data);
-      setPhase("done");
+      setStep("verdict");
     } catch {
-      setPhase("error");
+      if (alive()) setStep("error");
     }
   };
 
-  const reset = () => { setPicked(null); setResult(null); setPhase("idle"); };
+  const isPlaying = step !== "idle" && step !== "verdict" && step !== "error";
+  const act: 1 | 2 | 3 | null = step === "idle" || step === "error" ? null : ACT_OF[step];
 
-  const statusColor =
+  const verdictColor =
     result?.status === "blocked" ? "var(--accent-red)" :
     result?.status === "open" ? "#22c55e" :
     "var(--accent-blue)";
-  const statusLabel =
+  const verdictLabel =
     result?.status === "blocked" ? "REQUEST BLOCKED" :
     result?.status === "open" ? "OPEN CONSENT" :
     "TOKEN REQUIRED";
@@ -225,10 +314,10 @@ function SectionLiveDemo() {
             <div className="section-label mb-3 inline-flex items-center gap-2">
               <Sparkles className="w-3.5 h-3.5" /> Live demo
             </div>
-            <h2 className="headline-section text-3xl md:text-5xl mb-4">See the consent gate fire.</h2>
+            <h2 className="headline-section text-3xl md:text-5xl mb-4">Watch the full flow.</h2>
             <p className="max-w-2xl mx-auto text-base md:text-lg" style={{ color: "var(--text-secondary)" }}>
-              Pretend you're an AI image generator. Pick a person below and try to generate an image of them.
-              Watch what happens.
+              Pick a person. We'll register their face, set their consent, then pretend an AI image
+              generator tries to use them. Watch how the gate decides.
             </p>
           </div>
         </Reveal>
@@ -243,53 +332,32 @@ function SectionLiveDemo() {
                   key={p.slug}
                   persona={p}
                   active={picked?.slug === p.slug}
-                  disabled={phase !== "idle" && phase !== "done"}
-                  onPick={() => run(p)}
+                  disabled={false}
+                  onPick={() => play(p)}
                 />
               ))}
             </div>
             <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              All three faces are AI-generated and the personas are fictional. The response is a
-              scripted preview of how the real consent gate behaves — try it for real with{" "}
-              <Link href="/playground" className="underline">your own face in the Playground</Link>.
+              All three faces are AI-generated and the personas are fictional. The verdict is a
+              real call to <span className="font-mono">/api/v1/demo/check</span>.{" "}
+              <Link href="/playground" className="underline">Try with your own face →</Link>
             </p>
           </div>
 
-          {/* Result terminal */}
+          {/* Cinematic stage */}
           <div
-            className="glass-card p-7 md:p-9 min-h-[440px] flex flex-col"
-            style={{ borderColor: result ? statusColor : undefined, transition: "border-color .4s" }}
+            className="glass-card p-6 md:p-8 min-h-[520px] flex flex-col relative overflow-hidden"
+            style={{ borderColor: result ? verdictColor : undefined, transition: "border-color .4s" }}
           >
-            {/* Header bar */}
-            <div className="flex items-center justify-between mb-6 pb-4" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ background: "var(--accent-red)" }} />
-                <span className="w-2.5 h-2.5 rounded-full" style={{ background: "var(--accent-blue)" }} />
-                <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#22c55e" }} />
-                <span className="ml-3 text-xs font-mono" style={{ color: "var(--text-muted)" }}>
-                  POST /api/v1/demo/check
-                </span>
-                <span
-                  className="ml-2 text-[10px] tracking-widest font-semibold px-2 py-0.5 rounded"
-                  style={{ background: "var(--bg-secondary)", color: "var(--text-muted)" }}
-                >
-                  SIMULATED
-                </span>
-              </div>
-              <span className="text-[10px] tracking-widest font-semibold" style={{ color: "var(--text-muted)" }}>
-                LIVE
-              </span>
-            </div>
-
-            {phase === "idle" && !result && (
+            {step === "idle" && (
               <div className="flex-1 flex flex-col items-center justify-center text-center">
                 <Shield className="w-14 h-14 mb-4" style={{ color: "var(--text-muted)" }} />
-                <p className="text-lg" style={{ color: "var(--text-secondary)" }}>Pick a person on the left.</p>
-                <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>The consent check runs against the real API.</p>
+                <p className="text-lg" style={{ color: "var(--text-secondary)" }}>Pick a person on the left to begin.</p>
+                <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>3 short acts. About 8 seconds.</p>
               </div>
             )}
 
-            {phase === "error" && (
+            {step === "error" && (
               <div className="flex-1 flex flex-col items-center justify-center text-center gap-3" role="alert">
                 <XCircle className="w-12 h-12" style={{ color: "var(--accent-red)" }} />
                 <p style={{ color: "var(--text-primary)" }}>Demo request failed.</p>
@@ -297,68 +365,179 @@ function SectionLiveDemo() {
               </div>
             )}
 
-            {phase !== "idle" && phase !== "error" && picked && (
-              <div className="flex-1 flex flex-col gap-5" aria-live="polite">
-                {/* Subject card */}
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0" style={{ background: "var(--bg-secondary)" }}>
-                    <img src={picked.image} alt={picked.label} className="w-full h-full object-cover" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[11px] tracking-widest font-semibold" style={{ color: "var(--text-muted)" }}>SUBJECT</div>
-                    <div className="text-base font-semibold truncate" style={{ color: "var(--text-primary)" }}>{picked.label}</div>
-                    <div className="text-xs font-mono truncate" style={{ color: "var(--text-muted)" }}>request_id: req_{picked.slug}_8a3f9c</div>
-                  </div>
-                </div>
+            <span className="sr-only" aria-live="polite" role="status">
+              {step === "reg-scan"     && picked ? `Registering ${picked.label}'s face` :
+               step === "reg-done"     && picked ? `${picked.label} registered` :
+               step === "consent-pick" && picked ? `${picked.label} choosing consent level` :
+               step === "consent-set"  && picked ? `${picked.label} consent set` :
+               step === "ai-prompt"               ? "AI tool sending request" :
+               step === "ai-checking"             ? "Checking consent registry" :
+               step === "verdict" && result       ? `Verdict: ${verdictLabel}, ${result.matchScore.toFixed(1)} percent match` :
+               ""}
+            </span>
 
-                {/* Stage timeline */}
-                <div className="flex flex-col gap-2.5 font-mono text-sm">
-                  <DemoStage label="Uploading image…"      done={phase !== "uploading"}   active={phase === "uploading"} />
-                  <DemoStage label="Embedding face…"        done={phase === "checking" || phase === "done"} active={phase === "matching"} />
-                  <DemoStage label="Querying consent registry…" done={phase === "done"} active={phase === "checking"} />
-                </div>
+            {act !== null && picked && (
+              <>
+                <ActProgress act={act} />
 
-                {result && (
-                  <div className="mt-2 flex flex-col gap-4">
-                    {/* Verdict */}
-                    <div
-                      className="flex items-center gap-4 p-4 rounded-xl"
-                      style={{
-                        background: `${statusColor}11`,
-                        border: `1px solid ${statusColor}55`,
-                      }}
-                    >
-                      <DemoStatusIcon status={result.status} />
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[11px] tracking-widest font-semibold" style={{ color: statusColor }}>
-                          {statusLabel}
+                {/* ---------- ACT 1: REGISTER ---------- */}
+                {act === 1 && (
+                  <div className="flex-1 flex flex-col items-center justify-center anim-fade-in">
+                    <div className="text-[11px] tracking-widest font-semibold mb-4" style={{ color: "var(--accent-blue)" }}>
+                      ACT 1 · REGISTERING WITH MALAMH
+                    </div>
+                    <div className="relative w-56 h-56 rounded-2xl overflow-hidden anim-scale-in" style={{ background: "var(--bg-secondary)", boxShadow: "0 0 48px var(--accent-blue-glow)" }}>
+                      <img src={picked.image} alt="" className="w-full h-full object-cover" />
+
+                      {/* Corner brackets */}
+                      {step === "reg-scan" && <FaceBrackets />}
+
+                      {/* Scanning line */}
+                      {step === "reg-scan" && (
+                        <div className="absolute left-0 right-0 h-[3px] anim-face-scan"
+                          style={{ background: "linear-gradient(90deg, transparent, var(--accent-blue), transparent)", boxShadow: "0 0 14px var(--accent-blue)" }} />
+                      )}
+
+                      {/* "Registered" stamp */}
+                      {step === "reg-done" && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <div className="anim-stamp-in px-4 py-2 rounded-lg font-mono text-sm font-bold tracking-widest"
+                            style={{ background: "rgba(34,197,94,0.15)", border: "2px solid #22c55e", color: "#22c55e" }}>
+                            ✓ REGISTERED
+                          </div>
                         </div>
-                        <div className="text-sm leading-snug mt-0.5" style={{ color: "var(--text-primary)" }}>
-                          {result.persona.note}
-                        </div>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <div className="text-[10px] tracking-widest font-semibold" style={{ color: "var(--text-muted)" }}>MATCH</div>
-                        <div className="text-2xl font-mono" style={{ color: statusColor }}>{result.matchScore.toFixed(1)}%</div>
-                      </div>
+                      )}
                     </div>
 
-                    {result.authUrl && (
-                      <div className="text-xs font-mono p-3 rounded-lg" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
-                        <div className="text-[10px] tracking-widest mb-1" style={{ color: "var(--text-muted)" }}>AUTH_URL</div>
-                        <div className="break-all" style={{ color: "var(--accent-blue)" }}>{result.authUrl}</div>
+                    <div className="mt-5 text-center">
+                      <div className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>{picked.label}</div>
+                      <div className="text-sm font-mono mt-1" style={{ color: step === "reg-done" ? "#22c55e" : "var(--accent-blue)" }}>
+                        {step === "reg-scan" ? "Generating face embedding…" : "Indexed in registry · face_id=fc_" + picked.slug + "_8a3f9c"}
                       </div>
-                    )}
-
-                    <div className="flex gap-3 flex-wrap pt-1">
-                      <button onClick={reset} className="btn-mh btn-mh-ghost">Try another</button>
-                      <Link href="/register" className="btn-mh btn-mh-primary">
-                        Register your own face <ArrowRight className="w-4 h-4" />
-                      </Link>
                     </div>
                   </div>
                 )}
-              </div>
+
+                {/* ---------- ACT 2: CONSENT ---------- */}
+                {act === 2 && (
+                  <div className="flex-1 flex flex-col items-center justify-center anim-fade-in">
+                    <div className="text-[11px] tracking-widest font-semibold mb-2" style={{ color: "var(--accent-blue)" }}>
+                      ACT 2 · {picked.label.toUpperCase()} SETS THEIR CONSENT
+                    </div>
+                    <div className="text-sm mb-7" style={{ color: "var(--text-secondary)" }}>
+                      Three options. They pick one.
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-2xl">
+                      {CONSENT_OPTIONS.map((opt) => {
+                        const isChosen = opt.key === picked.slug;
+                        const dimmed = step === "consent-set" && !isChosen;
+                        const lit = step === "consent-set" && isChosen;
+                        const Icon = opt.icon;
+                        return (
+                          <div
+                            key={opt.key}
+                            className="rounded-xl p-4 flex flex-col items-center text-center transition-all duration-500"
+                            style={{
+                              background: lit ? `${opt.color}15` : "var(--bg-secondary)",
+                              border: `1.5px solid ${lit ? opt.color : "var(--border-subtle)"}`,
+                              opacity: dimmed ? 0.25 : 1,
+                              transform: lit ? "scale(1.06)" : "scale(1)",
+                              boxShadow: lit ? `0 0 32px ${opt.color}55` : undefined,
+                            }}
+                          >
+                            <Icon className="w-6 h-6 mb-2" style={{ color: lit ? opt.color : "var(--text-muted)" }} />
+                            <div className="text-xs font-mono font-semibold tracking-wider" style={{ color: lit ? opt.color : "var(--text-primary)" }}>
+                              {opt.label}
+                            </div>
+                            <div className="text-[10px] mt-1.5 leading-tight" style={{ color: "var(--text-muted)" }}>
+                              {opt.sub}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {step === "consent-set" && (
+                      <div className="mt-6 anim-fade-up flex items-center gap-2 text-sm font-mono" style={{ color: "#22c55e" }}>
+                        <CheckCircle2 className="w-4 h-4" /> Consent saved · webhook fired
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ---------- ACT 3: AI REQUEST + VERDICT ---------- */}
+                {act === 3 && (
+                  <div className="flex-1 flex flex-col anim-fade-in">
+                    <div className="text-[11px] tracking-widest font-semibold mb-4" style={{ color: "var(--accent-blue)" }}>
+                      ACT 3 · AN AI IMAGE GENERATOR TRIES TO USE THEM
+                    </div>
+
+                    {/* Mock AI Studio panel */}
+                    <div className="rounded-xl p-4 flex items-start gap-4" style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-subtle)" }}>
+                      <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0" style={{ background: "var(--bg-void)" }}>
+                        <img src={picked.image} alt="" className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 text-[10px] tracking-widest font-semibold" style={{ color: "var(--text-muted)" }}>
+                          <Wand2 className="w-3 h-3" /> GENERATIVE AI STUDIO
+                        </div>
+                        <div className="mt-1 font-mono text-sm truncate" style={{ color: "var(--text-primary)" }}>
+                          "professional headshot of <span style={{ color: "var(--accent-blue)" }}>{picked.label}</span>"
+                        </div>
+                        <div className="mt-2 flex items-center gap-2 text-xs font-mono" style={{ color: "var(--text-muted)" }}>
+                          <Upload className="w-3 h-3" /> reference: {picked.slug}-photo.jpg
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Pipeline */}
+                    <div className="mt-5 flex flex-col gap-2.5 font-mono text-sm">
+                      <PipeRow label="Detected face in reference image"   done />
+                      <PipeRow label="Querying Malamh consent registry…"  active={step === "ai-checking"} done={step === "verdict"} />
+                      <PipeRow label="Match found · enforcing consent"    done={step === "verdict"} />
+                    </div>
+
+                    {/* Verdict */}
+                    {step === "verdict" && result && (
+                      <div className="mt-5 flex flex-col gap-3 anim-slide-in-right">
+                        <div
+                          className="flex items-center gap-4 p-4 rounded-xl"
+                          style={{ background: `${verdictColor}11`, border: `1.5px solid ${verdictColor}66` }}
+                        >
+                          <DemoStatusIcon status={result.status} />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[11px] tracking-widest font-semibold" style={{ color: verdictColor }}>
+                              {verdictLabel}
+                            </div>
+                            <div className="text-sm leading-snug mt-0.5" style={{ color: "var(--text-primary)" }}>
+                              {result.persona.note}
+                            </div>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <div className="text-[10px] tracking-widest font-semibold" style={{ color: "var(--text-muted)" }}>MATCH</div>
+                            <div className="text-2xl font-mono" style={{ color: verdictColor }}>{result.matchScore.toFixed(1)}%</div>
+                          </div>
+                        </div>
+
+                        {result.authUrl && (
+                          <div className="text-xs font-mono p-3 rounded-lg" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+                            <div className="text-[10px] tracking-widest mb-1" style={{ color: "var(--text-muted)" }}>AUTH_URL · sent to {picked.label}</div>
+                            <div className="break-all" style={{ color: "var(--accent-blue)" }}>{result.authUrl}</div>
+                          </div>
+                        )}
+
+                        <div className="flex gap-3 flex-wrap pt-1">
+                          <button onClick={reset} className="btn-mh btn-mh-ghost">Try another persona</button>
+                          <Link href="/register" className="btn-mh btn-mh-primary">
+                            Register your own face <ArrowRight className="w-4 h-4" />
+                          </Link>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -367,12 +546,35 @@ function SectionLiveDemo() {
   );
 }
 
-function DemoStage({ label, done, active }: { label: string; done: boolean; active: boolean }) {
+function FaceBrackets() {
+  const corners: { pos: React.CSSProperties; rotate: number }[] = [
+    { pos: { top: 8,    left: 8 },    rotate: 0   },
+    { pos: { top: 8,    right: 8 },   rotate: 90  },
+    { pos: { bottom: 8, right: 8 },   rotate: 180 },
+    { pos: { bottom: 8, left: 8 },    rotate: 270 },
+  ];
   return (
-    <div
-      className="flex items-center gap-3 transition-opacity"
-      style={{ opacity: done || active ? 1 : 0.35 }}
-    >
+    <>
+      {corners.map((c, i) => (
+        <span
+          key={i}
+          className="absolute w-5 h-5 anim-fade-in"
+          style={{
+            ...c.pos,
+            transform: `rotate(${c.rotate}deg)`,
+            borderTop: "2px solid var(--accent-blue)",
+            borderLeft: "2px solid var(--accent-blue)",
+            boxShadow: "0 0 8px var(--accent-blue)",
+          }}
+        />
+      ))}
+    </>
+  );
+}
+
+function PipeRow({ label, done, active }: { label: string; done?: boolean; active?: boolean }) {
+  return (
+    <div className="flex items-center gap-3 transition-opacity" style={{ opacity: done || active ? 1 : 0.35 }}>
       {active ? (
         <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--accent-blue)" }} />
       ) : done ? (
