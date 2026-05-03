@@ -41,3 +41,21 @@ id = "b4wLPPANwb6PQDLtR3PEn"
 uri = "file://attached_assets/logo_concepts/C_consent_stamp.png"
 type = "image"
 title = "Concept C — Consent Stamp (split face = allow/block metaphor)"
+
+[[outputs]]
+id = "CZ4qR5OaOh9jmmytjwOHW"
+uri = "file://attached_assets/logo_concepts/v2_full.png"
+type = "image"
+title = "Variant 1 — face mesh M"
+
+[[outputs]]
+id = "3HxiepyaLyxtBmdb2lce-"
+uri = "file://attached_assets/logo_concepts/v2_full_alt.png"
+type = "image"
+title = "Variant 2 — face mesh M (alt)"
+
+[[outputs]]
+id = "myLYj4T_m8TZsYKrNVlzf"
+uri = "file://attached_assets/logo_concepts/v2_full_bold.png"
+type = "image"
+title = "Variant 3 — face mesh M (bold strokes)"
