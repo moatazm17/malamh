@@ -65,7 +65,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       >
         <div className="h-16 flex items-center px-6" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
           <Link href="/dashboard/overview" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
-            <MalamhMark size={26} />
+            <MalamhMark size={38} />
             <span className="font-semibold tracking-tight" style={{ fontFamily: "var(--app-font-display)" }}>Malamh</span>
           </Link>
         </div>
@@ -139,7 +139,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h14M3 10h14M3 14h14" strokeLinecap="round"/></svg>
           </button>
           <div className="ml-3 flex items-center gap-2">
-            <MalamhMark size={20} />
+            <MalamhMark size={30} />
             <span className="font-semibold" style={{ fontFamily: "var(--app-font-display)" }}>Malamh</span>
           </div>
         </div>

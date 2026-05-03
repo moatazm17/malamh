@@ -1105,7 +1105,7 @@ function SectionIntroducing() {
       <div className="relative max-w-4xl mx-auto text-center">
         <Reveal>
           <div className="inline-flex flex-col items-center gap-4 anim-scale-in">
-            <MalamhMark size={96} />
+            <MalamhMark size={140} />
             <div className="text-4xl md:text-5xl font-semibold tracking-tight" style={{ fontFamily: "var(--app-font-display)", color: "var(--text-primary)", textShadow: "0 0 40px var(--accent-blue-glow)" }}>
               Malamh
             </div>

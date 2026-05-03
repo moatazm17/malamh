@@ -131,7 +131,7 @@ export default function Share() {
       {/* Top brand strip */}
       <div className="relative z-10 max-w-[600px] mx-auto px-6 pt-8 pb-2">
         <Link href="/dashboard/overview" className="inline-flex items-center gap-2 hover:opacity-80">
-          <MalamhMark size={22} />
+          <MalamhMark size={34} />
           <span className="font-semibold tracking-tight" style={{ fontFamily: "var(--app-font-display)" }}>Malamh</span>
         </Link>
       </div>

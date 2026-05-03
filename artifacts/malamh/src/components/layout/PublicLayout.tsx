@@ -42,7 +42,7 @@ export function PublicLayout({ children, transparentHeader = false }: { children
       >
         <div className="max-w-7xl mx-auto flex h-16 items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
-            <MalamhMark size={28} />
+            <MalamhMark size={40} />
             <span className="font-semibold tracking-tight text-base" style={{ fontFamily: "var(--app-font-display)" }}>
               Malamh
             </span>
@@ -140,7 +140,7 @@ export function PublicLayout({ children, transparentHeader = false }: { children
         <div className="max-w-7xl mx-auto px-6 py-12 flex flex-col gap-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-2.5">
-              <MalamhMark size={20} />
+              <MalamhMark size={32} />
               <span className="text-sm" style={{ color: "var(--text-muted)" }}>
                 Built with conviction that your face belongs to you.
               </span>

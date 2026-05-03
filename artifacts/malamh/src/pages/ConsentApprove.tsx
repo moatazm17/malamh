@@ -31,7 +31,7 @@ export default function ConsentApprove() {
         <div className="w-full max-w-md relative z-10 anim-fade-up">
           <div className="flex justify-center mb-8">
             <div className="flex items-center gap-2.5">
-              <MalamhMark size={28} />
+              <MalamhMark size={42} />
               <span className="font-semibold tracking-tight text-lg" style={{ fontFamily: "var(--app-font-display)" }}>Malamh</span>
             </div>
           </div>

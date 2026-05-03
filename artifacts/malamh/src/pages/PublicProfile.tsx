@@ -91,7 +91,7 @@ export default function PublicProfile() {
           className="mt-8 inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs"
           style={{ border: "1px solid var(--accent-blue)", color: "var(--text-secondary)", boxShadow: "0 0 30px var(--accent-blue-glow)" }}
         >
-          <MalamhMark size={14} />
+          <MalamhMark size={20} />
           Protected by Malamh
         </div>
       </div>
