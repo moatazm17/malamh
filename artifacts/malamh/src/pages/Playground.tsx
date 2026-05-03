@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { PublicLayout } from "@/components/layout/PublicLayout";
 import { Loader2, Shield, Upload, Camera, X, ScanFace } from "lucide-react";
 
@@ -87,8 +87,13 @@ export default function Playground() {
   } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
+
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const stopPolling = () => {
     if (pollRef.current) {
@@ -97,7 +102,62 @@ export default function Playground() {
     }
   };
 
-  useEffect(() => () => stopPolling(), []);
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+  }, []);
+
+  const openCamera = useCallback(async () => {
+    setCameraError(null);
+    setCameraOpen(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play().catch(() => {});
+      }
+    } catch (err: any) {
+      setCameraError(err?.message ?? "Could not access camera. Check browser permissions.");
+    }
+  }, []);
+
+  const closeCamera = useCallback(() => {
+    stopCamera();
+    setCameraOpen(false);
+    setCameraError(null);
+  }, [stopCamera]);
+
+  const captureFromCamera = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+    setError(null);
+    setResult(null);
+    setPhotoSrc(dataUrl);
+    setImageBase64(dataUrl.replace(/^data:[^,]+,/, ""));
+    closeCamera();
+  }, [closeCamera]);
+
+  useEffect(() => () => { stopPolling(); stopCamera(); }, [stopCamera]);
+
+  // Scroll the result panel into view when something happens (loading / result / error).
+  // On mobile the right column stacks below the input, so users miss the result.
+  useEffect(() => {
+    if (loading || result || error) {
+      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [loading, result, error]);
 
   const startPolling = (tokenId: string) => {
     stopPolling();
@@ -205,7 +265,6 @@ export default function Playground() {
               }}
             >
               <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) loadFile(f); }} />
-              <input ref={cameraInputRef} type="file" accept="image/*" capture="user" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) loadFile(f); }} />
               {photoSrc ? (
                 <div className="relative">
                   <img src={photoSrc} alt="Uploaded" className="w-full max-h-80 object-cover" />
@@ -220,7 +279,7 @@ export default function Playground() {
                   </div>
                   <p className="text-sm font-medium">Drop a photo or click to upload</p>
                   <p className="text-xs" style={{ color: "var(--text-muted)" }}>JPG, PNG, WebP · auto-compressed</p>
-                  <button onClick={(e) => { e.stopPropagation(); cameraInputRef.current?.click(); }} className="btn-mh btn-mh-ghost text-xs mt-2" style={{ padding: "6px 14px" }}>
+                  <button onClick={(e) => { e.stopPropagation(); openCamera(); }} className="btn-mh btn-mh-ghost text-xs mt-2" style={{ padding: "6px 14px" }}>
                     <Camera className="w-3.5 h-3.5" /> Use camera
                   </button>
                 </div>
@@ -244,7 +303,7 @@ export default function Playground() {
           </div>
 
           {/* RIGHT — result */}
-          <div className="glass-card-elevated p-7 min-h-[420px] flex flex-col">
+          <div ref={resultRef} className="glass-card-elevated p-7 min-h-[420px] flex flex-col scroll-mt-24">
             <div className="section-label mb-4">Response</div>
             <div className="flex-1 flex flex-col items-center justify-center">
               {!result && !error && !loading && (
@@ -314,6 +373,50 @@ export default function Playground() {
           </div>
         </div>
       </div>
+
+      {cameraOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center px-4"
+          style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)" }}
+          onClick={closeCamera}
+        >
+          <div
+            className="glass-card-elevated p-5 w-full max-w-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Camera className="w-5 h-5" style={{ color: "var(--accent-blue)" }} />
+                <h3 className="headline-section text-lg">Capture from camera</h3>
+              </div>
+              <button onClick={closeCamera} className="p-2 rounded-full hover:bg-white/5" aria-label="Close camera">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div
+              className="relative rounded-2xl overflow-hidden mb-4"
+              style={{ background: "var(--bg-void)", border: "1px solid var(--border-subtle)", aspectRatio: "16 / 9" }}
+            >
+              <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
+              {cameraError && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6" style={{ background: "rgba(0,0,0,0.7)" }}>
+                  <X className="w-10 h-10 mb-3" style={{ color: "var(--accent-red)" }} />
+                  <p className="text-sm font-medium mb-1">Camera unavailable</p>
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>{cameraError}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button onClick={closeCamera} className="btn-mh btn-mh-ghost" style={{ padding: "10px 18px" }}>Cancel</button>
+              <button onClick={captureFromCamera} disabled={!!cameraError} className="btn-mh btn-mh-primary" style={{ padding: "10px 18px" }}>
+                <Camera className="w-4 h-4" /> Capture
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </PublicLayout>
   );
 }
