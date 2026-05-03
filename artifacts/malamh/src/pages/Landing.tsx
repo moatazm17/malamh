@@ -451,11 +451,11 @@ function SectionLiveDemo() {
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-[280px,1fr] gap-8 relative">
+        <div className="flex flex-col gap-8 relative">
           {/* Persona picker — shared between tabs */}
           <div className="flex flex-col gap-4">
             <div className="section-label">{tab === "flow" ? "Pick a target" : "Try a response"}</div>
-            <div className="grid grid-cols-3 lg:grid-cols-1 gap-3" role="radiogroup" aria-label="Choose a demo persona">
+            <div className="grid grid-cols-3 gap-3 max-w-3xl mx-auto w-full" role="radiogroup" aria-label="Choose a demo persona">
               {DEMO_PERSONAS.map((p) => (
                 <DemoPersonaCard
                   key={p.slug}
