@@ -676,10 +676,10 @@ function SectionNumbers() {
           <Reveal delay={0}>
             <div className="text-center">
               <div className="headline-display text-6xl md:text-7xl" style={{ color: "var(--accent-red)" }}>
-                <CountUp end={15.4} suffix="B" />
+                <CountUp end={5.85} suffix="B" />
               </div>
               <div className="mt-4 text-base" style={{ color: "var(--text-secondary)" }}>
-                images trained on without consent
+                images in LAION-5B, scraped without consent
               </div>
             </div>
           </Reveal>
