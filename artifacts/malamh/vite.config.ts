@@ -1,8 +1,39 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+import fs from "fs";
+import { createRequire } from "module";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+
+const require = createRequire(import.meta.url);
+const clerkSharedRoot = path.dirname(
+  require.resolve("@clerk/shared/package.json"),
+);
+
+// @clerk/react@6 imports many @clerk/shared subpaths (e.g. @clerk/shared/loadClerkJsScript)
+// that are emitted to dist/runtime/* but not advertised explicitly in the package.json
+// "exports" field, so Rollup fails to resolve them during production build. Map them
+// programmatically rather than hand-listing each subpath.
+function clerkSharedSubpathPlugin(): Plugin {
+  const prefix = "@clerk/shared/";
+  return {
+    name: "clerk-shared-subpath-resolver",
+    enforce: "pre",
+    resolveId(source) {
+      if (!source.startsWith(prefix)) return null;
+      const rest = source.slice(prefix.length);
+      const candidates = [
+        path.join(clerkSharedRoot, "dist/runtime", `${rest}.mjs`),
+        path.join(clerkSharedRoot, "dist/runtime", rest, "index.mjs"),
+      ];
+      for (const c of candidates) {
+        if (fs.existsSync(c)) return c;
+      }
+      return null;
+    },
+  };
+}
 
 const rawPort = process.env.PORT;
 
@@ -29,6 +60,7 @@ if (!basePath) {
 export default defineConfig({
   base: basePath,
   plugins: [
+    clerkSharedSubpathPlugin(),
     react(),
     tailwindcss({ optimize: false }),
     runtimeErrorOverlay(),
