@@ -758,12 +758,28 @@ function responseFor(persona: DemoPersona) {
 function DeveloperAPIPanel({ persona }: { persona: DemoPersona }) {
   const [lang, setLang] = useState<Lang>("curl");
   const [copied, setCopied] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [flash, setFlash] = useState(false);
+  const panelRef = useRef<HTMLDivElement | null>(null);
   const code = codeFor(lang, persona);
   const response = responseFor(persona);
   const statusColor =
     persona.slug === "blocked" ? "var(--accent-red)" :
     persona.slug === "open"    ? "#22c55e" :
     "var(--accent-blue)";
+
+  // When the persona changes: scroll the panel into view, show a brief
+  // "calling endpoint" state, then reveal the response with a glow flash.
+  useEffect(() => {
+    setLoading(true);
+    setFlash(false);
+    requestAnimationFrame(() => {
+      panelRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    const t1 = setTimeout(() => { setLoading(false); setFlash(true); }, 850);
+    const t2 = setTimeout(() => setFlash(false), 2200);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [persona.slug]);
 
   const copy = async () => {
     try {
@@ -774,7 +790,7 @@ function DeveloperAPIPanel({ persona }: { persona: DemoPersona }) {
   };
 
   return (
-    <div className="glass-card p-6 md:p-8 min-h-[520px] flex flex-col anim-fade-in">
+    <div ref={panelRef} className="glass-card p-6 md:p-8 min-h-[520px] flex flex-col anim-fade-in scroll-mt-24">
       {/* Header */}
       <div className="flex items-center justify-between mb-5 pb-4" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
         <div className="flex items-center gap-2">
@@ -834,22 +850,50 @@ function DeveloperAPIPanel({ persona }: { persona: DemoPersona }) {
           <div className="text-[11px] tracking-widest font-semibold" style={{ color: "var(--text-muted)" }}>
             ← RESPONSE
           </div>
-          <div className="flex items-center gap-2 text-[11px] font-mono" style={{ color: statusColor }}>
-            <span className="w-1.5 h-1.5 rounded-full" style={{ background: statusColor, boxShadow: `0 0 8px ${statusColor}` }} />
-            200 OK · {response.status}
+          <div className="flex items-center gap-2 text-[11px] font-mono" style={{ color: loading ? "var(--text-muted)" : statusColor }}>
+            {loading ? (
+              <>
+                <Loader2 className="w-3 h-3 animate-spin" />
+                POST /api/v1/consent/check
+              </>
+            ) : (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: statusColor, boxShadow: `0 0 8px ${statusColor}` }} />
+                200 OK · {response.status}
+              </>
+            )}
           </div>
         </div>
-        <pre
-          className="flex-1 rounded-xl p-4 font-mono text-[12.5px] leading-relaxed overflow-x-auto transition-all"
-          style={{ background: "var(--bg-void)", border: `1px solid ${statusColor}55`, color: "var(--text-secondary)", boxShadow: `inset 0 0 32px ${statusColor}11` }}
-        >
-          <code>{JSON.stringify(response, null, 2)}</code>
-        </pre>
 
-        <div className="mt-4 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-          {persona.slug === "blocked" && <>→ Your AI tool refuses to generate. The subject's face stays out of the model's output.</>}
-          {persona.slug === "token"   && <>→ Your AI tool pauses, sends the auth URL to the subject, and resumes only after they approve.</>}
-          {persona.slug === "open"    && <>→ Your AI tool proceeds. You log the consent record for your audit trail.</>}
+        {loading ? (
+          <div
+            className="flex-1 rounded-xl flex flex-col items-center justify-center gap-3 font-mono text-xs"
+            style={{ background: "var(--bg-void)", border: "1px dashed var(--border-subtle)", color: "var(--text-muted)" }}
+          >
+            <Loader2 className="w-5 h-5 animate-spin" style={{ color: "var(--accent-blue)" }} />
+            <div>computing facial embedding…</div>
+            <div style={{ color: "var(--text-muted)", opacity: 0.6 }}>querying consent registry…</div>
+          </div>
+        ) : (
+          <pre
+            key={persona.slug}
+            className="flex-1 rounded-xl p-4 font-mono text-[12.5px] leading-relaxed overflow-x-auto anim-fade-in"
+            style={{
+              background: "var(--bg-void)",
+              border: `1px solid ${statusColor}${flash ? "cc" : "55"}`,
+              color: "var(--text-secondary)",
+              boxShadow: flash ? `0 0 36px ${statusColor}55, inset 0 0 32px ${statusColor}22` : `inset 0 0 32px ${statusColor}11`,
+              transition: "box-shadow .6s, border-color .6s",
+            }}
+          >
+            <code>{JSON.stringify(response, null, 2)}</code>
+          </pre>
+        )}
+
+        <div className="mt-4 text-xs leading-relaxed min-h-[2.5em]" style={{ color: "var(--text-muted)" }}>
+          {!loading && persona.slug === "blocked" && <>→ Your AI tool refuses to generate. The subject's face stays out of the model's output.</>}
+          {!loading && persona.slug === "token"   && <>→ Your AI tool pauses, sends the auth URL to the subject, and resumes only after they approve.</>}
+          {!loading && persona.slug === "open"    && <>→ Your AI tool proceeds. You log the consent record for your audit trail.</>}
         </div>
       </div>
     </div>
