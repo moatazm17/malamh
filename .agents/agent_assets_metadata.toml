@@ -83,3 +83,21 @@ id = "ESyXYMyRvFWmEJUQWWcU5"
 uri = "file://attached_assets/logo_concepts/shield_m_peaks.png"
 type = "image"
 title = "4 — Shield with M-shaped peaks on top"
+
+[[outputs]]
+id = "YZ7XmUAjrORPkT2u4_CB8"
+uri = "file://attached_assets/logo_concepts/final_blue_v1.png"
+type = "image"
+title = "v1 — solid electric blue (currently installed)"
+
+[[outputs]]
+id = "FL0l5Gu6XlZiL-eXdUo-y"
+uri = "file://attached_assets/logo_concepts/final_blue_v2.png"
+type = "image"
+title = "v2 — deep blue → light blue gradient"
+
+[[outputs]]
+id = "l38bFsP0VjJABdRnOV2lE"
+uri = "file://attached_assets/logo_concepts/final_blue_v3.png"
+type = "image"
+title = "v3 — dark navy → brand blue gradient"
