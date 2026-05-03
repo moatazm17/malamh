@@ -47,12 +47,25 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 
 app.use(
-  clerkMiddleware((req) => ({
-    publishableKey: publishableKeyFromHost(
-      getClerkProxyHost(req) ?? "",
-      process.env.CLERK_PUBLISHABLE_KEY,
-    ),
-  })),
+  clerkMiddleware((req) => {
+    const host = getClerkProxyHost(req) ?? "";
+    const protocol = req.headers["x-forwarded-proto"] || "https";
+    // When the frontend uses the Clerk proxy, tokens are signed with the proxy
+    // URL as the authorized party. The backend must know the same proxyUrl to
+    // verify those tokens — otherwise getAuth(req).userId is always undefined
+    // and every protected route returns 401.
+    const proxyUrl =
+      process.env.NODE_ENV === "production" && host
+        ? `${protocol}://${host}/api/__clerk`
+        : undefined;
+    return {
+      publishableKey: publishableKeyFromHost(
+        host,
+        process.env.CLERK_PUBLISHABLE_KEY,
+      ),
+      ...(proxyUrl ? { proxyUrl } : {}),
+    };
+  }),
 );
 
 app.use("/api", router);
