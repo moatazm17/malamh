@@ -1,0 +1,99 @@
+2026-05-03T03:09:21Z info: Deployment: 543b901c-96f5-42de-bcbd-93959fe7546b
+2026-05-03T03:09:21Z info: Build: 75985a0c-227a-4793-82be-48de86370483
+2026-05-03T03:09:23Z info: Running Security Scan
+2026-05-03T03:09:49Z info: Security Scan Complete
+2026-05-03T03:09:53Z info: Preparing development database data
+2026-05-03T03:09:56Z info: Successfully copied development database data to production database
+2026-05-03T03:09:57Z info: Installing packages
+--> pnpm install
+
+Scope: all 9 workspace projects
+
+Lockfile is up to date, resolution step is skipped
+
+
+   ╭──────────────────────────────────────────╮
+   │                                          │
+   │   Update available! 10.26.1 → 10.33.2.   │
+   │   Changelog: https://pnpm.io/v/10.33.2   │
+   │     To update, run: pnpm add -g pnpm     │
+   │                                          │
+   ╰──────────────────────────────────────────╯
+
+
+Progress: resolved 1, reused 0, downloaded 0, added 0
+
+Packages: +2 -2
+++--
+
+Progress: resolved 2, reused 2, downloaded 0, added 0
+
+Progress: resolved 2, reused 2, downloaded 0, added 0, done
+
+. preinstall$ sh -c 'rm -f package-lock.json yarn.lock; case "$npm_config_user_agent" in pnpm/*) ;; *) echo "Use pnpm instead" >&2; exit 1 ;; esac'
+
+. preinstall: Done
+
+╭ Warning ─────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│   Ignored build scripts: @clerk/shared@3.47.5, @clerk/shared@4.9.0,          │
+│   sharp@0.34.5.                                                              │
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed     │
+│   to run scripts.                                                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+Done in 3.7s using pnpm v10.26.1
+
+2026-05-03T03:10:01Z info: Starting Build
+
+> @workspace/api-server@0.0.0 build /home/runner/workspace/artifacts/api-server
+> node ./build.mjs
+
+
+
+  dist/index.mjs                       2.9mb ⚠️
+  dist/pino-worker.mjs               153.4kb
+  dist/pino-file.mjs                 142.1kb
+  dist/pino-pretty.mjs               114.6kb
+  dist/thread-stream-worker.mjs        7.3kb
+  dist/index.mjs.map                   5.3mb
+  dist/pino-worker.mjs.map           256.9kb
+  dist/pino-file.mjs.map             229.0kb
+  dist/pino-pretty.mjs.map           203.9kb
+  dist/thread-stream-worker.mjs.map   12.0kb
+
+⚡ Done in 527ms
+
+
+> @workspace/malamh@0.0.0 build /home/runner/workspace/artifacts/malamh
+> vite build --config vite.config.ts
+
+
+vite v7.3.2 building client environment for production...
+
+transforming...
+
+✓ 14 modules transformed.
+
+✗ Build failed in 564ms
+
+error during build:
+[vite]: Rollup failed to resolve import "@clerk/shared/loadClerkJsScript" from "/home/runner/workspace/node_modules/.pnpm/@clerk+react@6.5.0_react-dom@19.1.0_react@19.1.0__react@19.1.0/node_modules/@clerk/react/dist/index.mjs".
+This is most likely unintended because it can break your application at runtime.
+If you do want to externalize this module explicitly add it to
+`build.rollupOptions.external`
+    at viteLog (file:///home/runner/workspace/node_modules/.pnpm/vite@7.3.2_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_tsx@4.21.0_yaml@2.8.2/node_modules/vite/dist/node/chunks/config.js:33639:57)
+    at file:///home/runner/workspace/node_modules/.pnpm/vite@7.3.2_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_tsx@4.21.0_yaml@2.8.2/node_modules/vite/dist/node/chunks/config.js:33673:73
+    at onwarn (file:///home/runner/workspace/node_modules/.pnpm/@vitejs+plugin-react@5.1.4_vite@7.3.2_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_tsx@4.21.0_yaml@2.8.2_/node_modules/@vitejs/plugin-react/dist/index.js:76:7)
+    at file:///home/runner/workspace/node_modules/.pnpm/vite@7.3.2_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_tsx@4.21.0_yaml@2.8.2/node_modules/vite/dist/node/chunks/config.js:33673:28
+    at onRollupLog (file:///home/runner/workspace/node_modules/.pnpm/vite@7.3.2_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_tsx@4.21.0_yaml@2.8.2/node_modules/vite/dist/node/chunks/config.js:33668:63)
+    at onLog (file:///home/runner/workspace/node_modules/.pnpm/vite@7.3.2_@types+node@25.3.5_jiti@2.6.1_lightningcss@1.31.1_tsx@4.21.0_yaml@2.8.2/node_modules/vite/dist/node/chunks/config.js:33471:4)
+    at file:///home/runner/workspace/node_modules/.pnpm/rollup@4.59.0/node_modules/rollup/dist/es/shared/node-entry.js:20981:32
+    at Object.logger [as onLog] (file:///home/runner/workspace/node_modules/.pnpm/rollup@4.59.0/node_modules/rollup/dist/es/shared/node-entry.js:22968:9)
+    at ModuleLoader.handleInvalidResolvedId (file:///home/runner/workspace/node_modules/.pnpm/rollup@4.59.0/node_modules/rollup/dist/es/shared/node-entry.js:21712:26)
+    at file:///home/runner/workspace/node_modules/.pnpm/rollup@4.59.0/node_modules/rollup/dist/es/shared/node-entry.js:21670:26
+
+/home/runner/workspace/artifacts/malamh:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/malamh@0.0.0 build: `vite build --config vite.config.ts`
+Exit status 1

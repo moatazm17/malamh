@@ -100,10 +100,11 @@ router.patch("/webhooks/:id", requireSession, async (req, res) => {
 
 router.delete("/webhooks/:id", requireSession, async (req, res) => {
   const user = (req as any).user;
+  const id = String(req.params.id);
   const [existing] = await db
     .select()
     .from(webhooksTable)
-    .where(and(eq(webhooksTable.id, req.params.id), eq(webhooksTable.userId, user.id)))
+    .where(and(eq(webhooksTable.id, id), eq(webhooksTable.userId, user.id)))
     .limit(1);
 
   if (!existing) {
@@ -111,16 +112,17 @@ router.delete("/webhooks/:id", requireSession, async (req, res) => {
     return;
   }
 
-  await db.delete(webhooksTable).where(eq(webhooksTable.id, req.params.id));
+  await db.delete(webhooksTable).where(eq(webhooksTable.id, id));
   res.json({ success: true });
 });
 
 router.post("/webhooks/:id/test", requireSession, async (req, res) => {
   const user = (req as any).user;
+  const id = String(req.params.id);
   const [existing] = await db
     .select()
     .from(webhooksTable)
-    .where(and(eq(webhooksTable.id, req.params.id), eq(webhooksTable.userId, user.id)))
+    .where(and(eq(webhooksTable.id, id), eq(webhooksTable.userId, user.id)))
     .limit(1);
 
   if (!existing) {
@@ -134,10 +136,11 @@ router.post("/webhooks/:id/test", requireSession, async (req, res) => {
 
 router.post("/webhooks/:id/rotate-secret", requireSession, async (req, res) => {
   const user = (req as any).user;
+  const id = String(req.params.id);
   const [existing] = await db
     .select()
     .from(webhooksTable)
-    .where(and(eq(webhooksTable.id, req.params.id), eq(webhooksTable.userId, user.id)))
+    .where(and(eq(webhooksTable.id, id), eq(webhooksTable.userId, user.id)))
     .limit(1);
 
   if (!existing) {
@@ -149,7 +152,7 @@ router.post("/webhooks/:id/rotate-secret", requireSession, async (req, res) => {
   const [updated] = await db
     .update(webhooksTable)
     .set({ secret: newSecret, updatedAt: new Date() })
-    .where(eq(webhooksTable.id, req.params.id))
+    .where(eq(webhooksTable.id, id))
     .returning();
 
   // Return new secret once — user must save it
