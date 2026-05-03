@@ -689,7 +689,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /billing/subscribe:
+  /billing/checkout:
     post:
       operationId: subscribe
       tags: [billing]
@@ -974,6 +974,12 @@ components:
           type: string
           format: date-time
         subscription:
+          $ref: "#/components/schemas/Subscription"
+          nullable: true
+        ownerSubscription:
+          $ref: "#/components/schemas/Subscription"
+          nullable: true
+        apiSubscription:
           $ref: "#/components/schemas/Subscription"
           nullable: true
       required: [id, email, notifyOnScan, notifyOnConsent, notifyOnApiCheck, createdAt]
@@ -1330,9 +1336,12 @@ components:
       properties:
         id:
           type: string
+        kind:
+          type: string
+          enum: [OWNER, API]
         plan:
           type: string
-          enum: [FREE, MONITOR, MONITOR_PRO]
+          enum: [FREE, PRO, FAMILY, DEVELOPER, API_BUILDER, ENTERPRISE]
         status:
           type: string
         expiresAt:
@@ -1349,7 +1358,7 @@ components:
       properties:
         plan:
           type: string
-          enum: [MONITOR, MONITOR_PRO]
+          enum: [PRO, FAMILY, API_BUILDER]
       required: [plan]
 
     SubscribeResponse:

@@ -13,7 +13,7 @@ import {
   compressImage,
 } from "../lib/rekognition";
 import { logger } from "../lib/logger";
-import { checkFaceLimit } from "../lib/plan-limits";
+import { checkFaceLimit, ownerPlanAllowsToken, getOwnerPlan } from "../lib/plan-limits";
 import sharp from "sharp";
 
 const router = Router();
@@ -60,6 +60,18 @@ router.post("/internal/faces", requireSession, async (req, res) => {
 
   const { embedding, consentLevel, label, verified, awsFaceId, referenceImage } = parsed.data;
 
+  // TOKEN_REQUIRED requires a paid OWNER plan.
+  if (consentLevel === "TOKEN_REQUIRED") {
+    const ownerPlan = await getOwnerPlan(user.id);
+    if (!ownerPlanAllowsToken(ownerPlan)) {
+      res.status(403).json({
+        error: "PlanLimitExceeded",
+        message: `Per-request consent tokens require a paid plan. Upgrade to Pro to enable token-mode consent.`,
+      });
+      return;
+    }
+  }
+
   const face = await db.insert(facesTable).values({
     id: cuid(),
     userId: user.id,
@@ -102,6 +114,18 @@ router.patch("/internal/faces/:id", requireSession, async (req, res) => {
   if (!existing) {
     res.status(404).json({ error: "NotFound", message: "Face not found" });
     return;
+  }
+
+  // Same TOKEN_REQUIRED gate when a face is being switched into token mode.
+  if (parsed.data.consentLevel === "TOKEN_REQUIRED") {
+    const ownerPlan = await getOwnerPlan(user.id);
+    if (!ownerPlanAllowsToken(ownerPlan)) {
+      res.status(403).json({
+        error: "PlanLimitExceeded",
+        message: `Per-request consent tokens require a paid plan. Upgrade to Pro to enable token-mode consent.`,
+      });
+      return;
+    }
   }
 
   const updates: Record<string, any> = { updatedAt: new Date() };

@@ -9,7 +9,7 @@ import { searchFacesByImage } from "../lib/rekognition";
 import { cuid, generateToken } from "../lib/id";
 import { logger } from "../lib/logger";
 import { fireWebhook } from "../lib/webhook-service";
-import { checkMonthlyQuota } from "../lib/plan-limits";
+import { checkApiQuota } from "../lib/plan-limits";
 
 const router = Router();
 
@@ -95,12 +95,13 @@ router.post("/v1/check-face", async (req, res) => {
     return;
   }
 
-  // Enforce monthly quota
-  const quota = await checkMonthlyQuota(apiAuth.userId);
+  // Enforce monthly API-caller quota (charged to the AI company that owns the
+  // API key — face owners are NEVER quota-limited on being protected).
+  const quota = await checkApiQuota(apiAuth.userId);
   if (!quota.allowed) {
     res.status(429).json({
       error: "QuotaExceeded",
-      message: `Monthly limit of ${quota.limit.toLocaleString()} checks reached for ${quota.plan} plan. Upgrade to increase your quota.`,
+      message: `Monthly limit of ${quota.limit.toLocaleString()} checks reached for ${quota.plan} plan. Upgrade your API plan to increase your quota.`,
       limit: quota.limit,
       current: quota.current,
     });
@@ -135,6 +136,17 @@ router.post("/v1/check-face", async (req, res) => {
   }
 
   if (!match.matched) {
+    // Always log the API call for caller-side billing, even when there's no match.
+    await db.insert(accessLogsTable).values({
+      id: cuid(),
+      faceId: null,
+      userId: null,
+      apiCallerUserId: apiAuth.userId,
+      requesterName,
+      requesterIp: ip,
+      action: "no_match",
+      matchScore: 0,
+    });
     res.json({ status: "no_match", matchScore: null, authUrl: null });
     return;
   }
@@ -144,17 +156,16 @@ router.post("/v1/check-face", async (req, res) => {
     : match.consentLevel === "OPEN" ? "allowed"
     : "token_issued";
 
-  if (match.userId) {
-    await db.insert(accessLogsTable).values({
-      id: cuid(),
-      faceId: match.faceId,
-      userId: match.userId,
-      requesterName,
-      requesterIp: ip,
-      action,
-      matchScore: match.score,
-    });
-  }
+  await db.insert(accessLogsTable).values({
+    id: cuid(),
+    faceId: match.faceId,
+    userId: match.userId,
+    apiCallerUserId: apiAuth.userId,
+    requesterName,
+    requesterIp: ip,
+    action,
+    matchScore: match.score,
+  });
 
   if (match.consentLevel === "BLOCKED") {
     if (match.userId) fireWebhook(match.userId, "face.blocked", { faceId: match.faceId, requesterName, matchScore: match.score });
@@ -190,6 +201,19 @@ router.post("/v1/check-face-with-token", async (req, res) => {
   const apiAuth = await authenticateApiKey(req);
   if (!apiAuth) {
     res.status(401).json({ error: "Unauthorized", message: "Valid API key required" });
+    return;
+  }
+
+  // Token-based check still hits the registry → still counts as a billable
+  // API call against the caller's monthly quota.
+  const quota = await checkApiQuota(apiAuth.userId);
+  if (!quota.allowed) {
+    res.status(429).json({
+      error: "QuotaExceeded",
+      message: `Monthly limit of ${quota.limit.toLocaleString()} checks reached for ${quota.plan} plan. Upgrade your API plan to increase your quota.`,
+      limit: quota.limit,
+      current: quota.current,
+    });
     return;
   }
 
@@ -251,6 +275,16 @@ router.post("/v1/check-face-with-token", async (req, res) => {
   }
 
   await db.update(consentTokensTable).set({ used: true }).where(eq(consentTokensTable.id, ct.id));
+  await db.insert(accessLogsTable).values({
+    id: cuid(),
+    faceId: ct.faceId,
+    userId: ct.userId,
+    apiCallerUserId: apiAuth.userId,
+    requesterName: ct.requesterName,
+    requesterIp: getRequesterIp(req),
+    action: "token_used",
+    matchScore: match.score,
+  });
   res.json({ status: "open", matchScore: match.score, authUrl: null });
 });
 

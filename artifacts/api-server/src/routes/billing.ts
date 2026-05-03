@@ -1,30 +1,41 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { subscriptionsTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { z } from "zod";
 import { requireSession } from "../lib/auth";
+import { cuid } from "../lib/id";
 import { logger } from "../lib/logger";
 import { getUncachableStripeClient } from "../lib/stripe-client";
 
 const router = Router();
 
+// Plan → kind mapping. Each plan name lives in exactly one tree.
+const PLAN_KIND: Record<string, "OWNER" | "API"> = {
+  PRO: "OWNER",
+  FAMILY: "OWNER",
+  API_BUILDER: "API",
+};
+
 const PRICE_IDS: Record<string, string | undefined> = {
   PRO: process.env.STRIPE_PRICE_PRO,
+  FAMILY: process.env.STRIPE_PRICE_FAMILY,
   API_BUILDER: process.env.STRIPE_PRICE_API_BUILDER,
 };
 
 const PLAN_NAMES: Record<string, string> = {
   PRO: "Pro",
+  FAMILY: "Family",
   API_BUILDER: "API Builder",
 };
 
 router.get("/billing/subscription", requireSession, async (req, res) => {
   const user = (req as any).user;
+  // Default to the OWNER subscription for back-compat.
   const [sub] = await db
     .select()
     .from(subscriptionsTable)
-    .where(eq(subscriptionsTable.userId, user.id))
+    .where(and(eq(subscriptionsTable.userId, user.id), eq(subscriptionsTable.kind, "OWNER")))
     .limit(1);
 
   if (!sub) {
@@ -37,7 +48,7 @@ router.get("/billing/subscription", requireSession, async (req, res) => {
 router.post("/billing/checkout", requireSession, async (req, res) => {
   const user = (req as any).user;
   const parsed = z
-    .object({ plan: z.enum(["PRO", "API_BUILDER"]) })
+    .object({ plan: z.enum(["PRO", "FAMILY", "API_BUILDER"]) })
     .safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "ValidationError", message: "Valid plan required" });
@@ -45,6 +56,7 @@ router.post("/billing/checkout", requireSession, async (req, res) => {
   }
 
   const { plan } = parsed.data;
+  const kind = PLAN_KIND[plan];
   const stripe = await getUncachableStripeClient();
 
   if (!stripe) {
@@ -52,7 +64,7 @@ router.post("/billing/checkout", requireSession, async (req, res) => {
     await db
       .update(subscriptionsTable)
       .set({ plan, status: "active" })
-      .where(eq(subscriptionsTable.userId, user.id));
+      .where(and(eq(subscriptionsTable.userId, user.id), eq(subscriptionsTable.kind, kind)));
 
     res.json({
       success: true,
@@ -70,7 +82,7 @@ router.post("/billing/checkout", requireSession, async (req, res) => {
     await db
       .update(subscriptionsTable)
       .set({ plan, status: "active" })
-      .where(eq(subscriptionsTable.userId, user.id));
+      .where(and(eq(subscriptionsTable.userId, user.id), eq(subscriptionsTable.kind, kind)));
     res.json({
       success: true,
       checkoutUrl: null,
@@ -81,13 +93,28 @@ router.post("/billing/checkout", requireSession, async (req, res) => {
   }
 
   try {
-    const [sub] = await db
+    const subs = await db
       .select()
       .from(subscriptionsTable)
-      .where(eq(subscriptionsTable.userId, user.id))
-      .limit(1);
+      .where(eq(subscriptionsTable.userId, user.id));
 
-    let customerId: string | undefined = sub?.stripeCustomerId ?? undefined;
+    let sub = subs.find((s) => s.kind === kind);
+
+    // Defensive upsert: if /auth/me hasn't lazy-provisioned this kind yet
+    // (e.g. user goes straight to checkout), create it now so subsequent
+    // updates have a row to land on.
+    if (!sub) {
+      const fallbackPlan = kind === "API" ? "DEVELOPER" : "FREE";
+      [sub] = await db
+        .insert(subscriptionsTable)
+        .values({ id: cuid(), userId: user.id, kind, plan: fallbackPlan, status: "active" })
+        .returning();
+    }
+
+    // Reuse the same Stripe customer across both kinds so a single portal
+    // session can manage all of the user's subscriptions.
+    let customerId: string | undefined =
+      sub.stripeCustomerId ?? subs.find((s) => s.stripeCustomerId)?.stripeCustomerId ?? undefined;
 
     if (!customerId) {
       const customer = await stripe.customers.create({
@@ -105,13 +132,13 @@ router.post("/billing/checkout", requireSession, async (req, res) => {
       mode: "subscription",
       success_url: `${origin}/dashboard/settings?upgraded=1`,
       cancel_url: `${origin}/pricing`,
-      metadata: { userId: user.id, plan },
+      metadata: { userId: user.id, plan, kind },
     });
 
     await db
       .update(subscriptionsTable)
       .set({ stripeCustomerId: customerId })
-      .where(eq(subscriptionsTable.userId, user.id));
+      .where(and(eq(subscriptionsTable.userId, user.id), eq(subscriptionsTable.kind, kind)));
 
     res.json({ success: true, checkoutUrl: session.url });
   } catch (err: any) {
@@ -128,17 +155,22 @@ router.post("/billing/portal", requireSession, async (req, res) => {
     await db
       .update(subscriptionsTable)
       .set({ plan: "FREE", status: "active" })
-      .where(eq(subscriptionsTable.userId, user.id));
+      .where(and(eq(subscriptionsTable.userId, user.id), eq(subscriptionsTable.kind, "OWNER")));
+    await db
+      .update(subscriptionsTable)
+      .set({ plan: "DEVELOPER", status: "active" })
+      .where(and(eq(subscriptionsTable.userId, user.id), eq(subscriptionsTable.kind, "API")));
     res.json({ success: true, portalUrl: null, message: "Downgraded to FREE (demo mode)" });
     return;
   }
 
   try {
-    const [sub] = await db
+    // Use whichever subscription has a Stripe customer attached.
+    const subs = await db
       .select()
       .from(subscriptionsTable)
-      .where(eq(subscriptionsTable.userId, user.id))
-      .limit(1);
+      .where(eq(subscriptionsTable.userId, user.id));
+    const sub = subs.find((s) => s.stripeCustomerId);
 
     if (!sub?.stripeCustomerId) {
       res.status(400).json({ error: "BadRequest", message: "No Stripe customer found — subscribe first" });
@@ -191,12 +223,13 @@ router.post("/billing/webhook", async (req, res) => {
       const session = event.data.object;
       const userId = session.metadata?.userId;
       const plan = session.metadata?.plan;
-      if (userId && plan) {
+      const kind = (session.metadata?.kind as "OWNER" | "API" | undefined) ?? PLAN_KIND[plan];
+      if (userId && plan && kind) {
         await db
           .update(subscriptionsTable)
           .set({ plan, status: "active", stripeCustomerId: session.customer, stripeSubId: session.subscription })
-          .where(eq(subscriptionsTable.userId, userId));
-        logger.info({ userId, plan }, "Subscription activated via Stripe checkout");
+          .where(and(eq(subscriptionsTable.userId, userId), eq(subscriptionsTable.kind, kind)));
+        logger.info({ userId, plan, kind }, "Subscription activated via Stripe checkout");
       }
     }
 
@@ -208,11 +241,12 @@ router.post("/billing/webhook", async (req, res) => {
         .where(eq(subscriptionsTable.stripeSubId, sub.id))
         .limit(1);
       if (dbSub) {
+        const downgrade = dbSub.kind === "API" ? "DEVELOPER" : "FREE";
         await db
           .update(subscriptionsTable)
-          .set({ plan: "FREE", status: "active", stripeSubId: null })
-          .where(eq(subscriptionsTable.userId, dbSub.userId));
-        logger.info({ userId: dbSub.userId }, "Subscription cancelled via Stripe, downgraded to FREE");
+          .set({ plan: downgrade, status: "active", stripeSubId: null })
+          .where(eq(subscriptionsTable.id, dbSub.id));
+        logger.info({ userId: dbSub.userId, kind: dbSub.kind }, "Subscription cancelled via Stripe, downgraded");
       }
     }
   } catch (err) {

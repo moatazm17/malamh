@@ -2362,7 +2362,7 @@ export function useGetSubscription<
  * @summary Subscribe to a plan
  */
 export const getSubscribeUrl = () => {
-  return `/api/billing/subscribe`;
+  return `/api/billing/checkout`;
 };
 
 export const subscribe = async (

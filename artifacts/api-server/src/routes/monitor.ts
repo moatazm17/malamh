@@ -16,7 +16,8 @@ const DEMO_DOMAINS = [
 ];
 
 function requireMonitorPlan(plan: string): boolean {
-  return plan === "MONITOR" || plan === "MONITOR_PRO" || plan === "PRO" || plan === "API_BUILDER";
+  // Monitoring is an OWNER-side feature (it's about your own face being scraped).
+  return plan === "PRO" || plan === "FAMILY";
 }
 
 async function fetchImageAsBuffer(url: string): Promise<Buffer | null> {
@@ -64,11 +65,11 @@ async function verifyFaceMatch(imageUrl: string, userFaces: Array<{ id: string; 
 router.post("/monitor/scan", requireSession, async (req, res) => {
   const user = (req as any).user;
   const [sub] = await db.select().from(subscriptionsTable)
-    .where(eq(subscriptionsTable.userId, user.id))
+    .where(and(eq(subscriptionsTable.userId, user.id), eq(subscriptionsTable.kind, "OWNER")))
     .limit(1);
 
   if (!sub || !requireMonitorPlan(sub.plan)) {
-    res.status(403).json({ error: "Forbidden", message: "PRO, MONITOR, or API_BUILDER plan required" });
+    res.status(403).json({ error: "Forbidden", message: "Pro or Family plan required to run web scans" });
     return;
   }
 

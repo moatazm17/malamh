@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { useQueryClient } from "@tanstack/react-query";
 
-const PLANS_WITH_MONITOR = ["MONITOR", "MONITOR_PRO", "PRO", "API_BUILDER"];
+const PLANS_WITH_MONITOR = ["PRO", "FAMILY"];
 
 type ScanPhase = "idle" | "google" | "ai" | "verifying" | "done";
 
@@ -32,7 +32,7 @@ export default function Monitor() {
   const queryClient = useQueryClient();
   const [scanPhase, setScanPhase] = useState<ScanPhase>("idle");
 
-  const plan = ((me as any)?.subscription?.plan as string | undefined)?.toUpperCase() ?? "FREE";
+  const plan = (((me as any)?.ownerSubscription?.plan ?? (me as any)?.subscription?.plan) as string | undefined)?.toUpperCase() ?? "FREE";
   const hasMonitor = PLANS_WITH_MONITOR.includes(plan);
 
   const results = (scanResults?.results ?? scanResults ?? []) as Array<{

@@ -6,12 +6,16 @@ import { Loader2, Save, Trash2, ExternalLink, CreditCard } from "lucide-react";
 import { useLocation } from "wouter";
 import { apiFetch } from "@/lib/api";
 
-const PLAN_LABELS: Record<string, { name: string; badge: string }> = {
-  FREE: { name: "Personal (Free)", badge: "badge-blue" },
-  MONITOR: { name: "Monitor", badge: "badge-blue" },
-  MONITOR_PRO: { name: "Monitor Pro", badge: "badge-blue" },
-  PRO: { name: "Pro", badge: "badge-open" },
-  API_BUILDER: { name: "API Builder", badge: "badge-open" },
+const OWNER_PLAN_LABELS: Record<string, { name: string; badge: string; blurb: string; upgradeable: boolean }> = {
+  FREE: { name: "Personal (Free)", badge: "badge-blue", blurb: "Free forever · 1 face · unlimited checks against your face", upgradeable: true },
+  PRO: { name: "Pro", badge: "badge-open", blurb: "Billed monthly · 5 faces · consent tokens · weekly Monitor scans", upgradeable: false },
+  FAMILY: { name: "Family", badge: "badge-open", blurb: "Billed monthly · 25 faces · everything in Pro · family billing", upgradeable: false },
+};
+
+const API_PLAN_LABELS: Record<string, { name: string; badge: string; blurb: string; upgradeable: boolean }> = {
+  DEVELOPER: { name: "Developer (Free)", badge: "badge-blue", blurb: "Free · 1,000 API checks / month", upgradeable: true },
+  API_BUILDER: { name: "API Builder", badge: "badge-open", blurb: "Billed monthly · 100,000 API checks / month · webhooks", upgradeable: false },
+  ENTERPRISE: { name: "Enterprise", badge: "badge-open", blurb: "Custom · Unlimited checks · SLA · dedicated support", upgradeable: false },
 };
 
 function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
@@ -99,8 +103,10 @@ export default function Settings() {
     }
   };
 
-  const plan = user?.subscription?.plan ?? "FREE";
-  const planInfo = PLAN_LABELS[plan] ?? PLAN_LABELS.FREE;
+  const ownerPlan = (user as any)?.ownerSubscription?.plan ?? user?.subscription?.plan ?? "FREE";
+  const apiPlan = (user as any)?.apiSubscription?.plan ?? "DEVELOPER";
+  const ownerInfo = OWNER_PLAN_LABELS[ownerPlan] ?? OWNER_PLAN_LABELS.FREE;
+  const apiInfo = API_PLAN_LABELS[apiPlan] ?? API_PLAN_LABELS.DEVELOPER;
 
   if (isLoading) {
     return (
@@ -164,27 +170,55 @@ export default function Settings() {
           >Save preferences</button>
         </div>
 
-        {/* Subscription */}
+        {/* Owner Subscription */}
         <div className="glass-card p-7">
-          <h2 className="text-lg font-semibold mb-5" style={{ fontFamily: "var(--app-font-display)" }}>Subscription</h2>
+          <div className="flex items-baseline justify-between mb-1">
+            <h2 className="text-lg font-semibold" style={{ fontFamily: "var(--app-font-display)" }}>Face protection plan</h2>
+            <span className="section-label">For you, the face owner</span>
+          </div>
+          <p className="text-xs mb-5" style={{ color: "var(--text-muted)" }}>
+            Controls how many faces you can register and which consent modes are available. Checks against your face are always unlimited.
+          </p>
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
-              <span className={`badge-mh ${planInfo.badge}`}>{planInfo.name}</span>
-              <p className="text-sm mt-3" style={{ color: "var(--text-secondary)" }}>
-                {plan === "FREE" ? "Free forever · 3 faces, 100 checks/month" :
-                 plan === "PRO" ? "Billed monthly · 10 faces, 10K checks/month" :
-                 plan === "API_BUILDER" ? "Billed monthly · Unlimited faces & checks" :
-                 "Billed monthly"}
-              </p>
+              <span className={`badge-mh ${ownerInfo.badge}`}>{ownerInfo.name}</span>
+              <p className="text-sm mt-3" style={{ color: "var(--text-secondary)" }}>{ownerInfo.blurb}</p>
             </div>
-            {plan === "FREE" ? (
+            {ownerInfo.upgradeable ? (
               <a href="/pricing" className="btn-mh btn-mh-primary">
-                <CreditCard className="w-4 h-4" /> Upgrade to Pro
+                <CreditCard className="w-4 h-4" /> Upgrade
               </a>
             ) : (
               <button onClick={openPortal} disabled={portalLoading} className="btn-mh btn-mh-ghost">
                 {portalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
-                Manage Subscription
+                Manage subscription
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* API Subscription */}
+        <div className="glass-card p-7">
+          <div className="flex items-baseline justify-between mb-1">
+            <h2 className="text-lg font-semibold" style={{ fontFamily: "var(--app-font-display)" }}>API plan</h2>
+            <span className="section-label">For querying the registry</span>
+          </div>
+          <p className="text-xs mb-5" style={{ color: "var(--text-muted)" }}>
+            For AI products that call <code style={{ color: "var(--accent-blue)" }}>POST /api/v1/check-face</code>. Independent from your face protection plan.
+          </p>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <span className={`badge-mh ${apiInfo.badge}`}>{apiInfo.name}</span>
+              <p className="text-sm mt-3" style={{ color: "var(--text-secondary)" }}>{apiInfo.blurb}</p>
+            </div>
+            {apiInfo.upgradeable ? (
+              <a href="/pricing" className="btn-mh btn-mh-primary">
+                <CreditCard className="w-4 h-4" /> Upgrade
+              </a>
+            ) : (
+              <button onClick={openPortal} disabled={portalLoading} className="btn-mh btn-mh-ghost">
+                {portalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+                Manage subscription
               </button>
             )}
           </div>

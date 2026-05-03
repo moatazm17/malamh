@@ -31,17 +31,29 @@ export interface LoginBody {
   password: string;
 }
 
+export type SubscriptionKind =
+  (typeof SubscriptionKind)[keyof typeof SubscriptionKind];
+
+export const SubscriptionKind = {
+  OWNER: "OWNER",
+  API: "API",
+} as const;
+
 export type SubscriptionPlan =
   (typeof SubscriptionPlan)[keyof typeof SubscriptionPlan];
 
 export const SubscriptionPlan = {
   FREE: "FREE",
-  MONITOR: "MONITOR",
-  MONITOR_PRO: "MONITOR_PRO",
+  PRO: "PRO",
+  FAMILY: "FAMILY",
+  DEVELOPER: "DEVELOPER",
+  API_BUILDER: "API_BUILDER",
+  ENTERPRISE: "ENTERPRISE",
 } as const;
 
 export interface Subscription {
   id: string;
+  kind?: SubscriptionKind;
   plan: SubscriptionPlan;
   status: string;
   expiresAt?: string | null;
@@ -59,6 +71,8 @@ export interface User {
   notifyOnApiCheck: boolean;
   createdAt: string;
   subscription?: Subscription | null;
+  ownerSubscription?: Subscription | null;
+  apiSubscription?: Subscription | null;
 }
 
 export interface AuthResponse {
@@ -313,8 +327,9 @@ export type SubscribeBodyPlan =
   (typeof SubscribeBodyPlan)[keyof typeof SubscribeBodyPlan];
 
 export const SubscribeBodyPlan = {
-  MONITOR: "MONITOR",
-  MONITOR_PRO: "MONITOR_PRO",
+  PRO: "PRO",
+  FAMILY: "FAMILY",
+  API_BUILDER: "API_BUILDER",
 } as const;
 
 export interface SubscribeBody {

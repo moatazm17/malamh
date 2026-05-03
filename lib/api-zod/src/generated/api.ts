@@ -47,7 +47,49 @@ export const LoginResponse = zod.object({
     subscription: zod
       .object({
         id: zod.string(),
-        plan: zod.enum(["FREE", "MONITOR", "MONITOR_PRO"]),
+        kind: zod.enum(["OWNER", "API"]).optional(),
+        plan: zod.enum([
+          "FREE",
+          "PRO",
+          "FAMILY",
+          "DEVELOPER",
+          "API_BUILDER",
+          "ENTERPRISE",
+        ]),
+        status: zod.string(),
+        expiresAt: zod.coerce.date().nullish(),
+        createdAt: zod.coerce.date(),
+      })
+      .nullish(),
+    ownerSubscription: zod
+      .object({
+        id: zod.string(),
+        kind: zod.enum(["OWNER", "API"]).optional(),
+        plan: zod.enum([
+          "FREE",
+          "PRO",
+          "FAMILY",
+          "DEVELOPER",
+          "API_BUILDER",
+          "ENTERPRISE",
+        ]),
+        status: zod.string(),
+        expiresAt: zod.coerce.date().nullish(),
+        createdAt: zod.coerce.date(),
+      })
+      .nullish(),
+    apiSubscription: zod
+      .object({
+        id: zod.string(),
+        kind: zod.enum(["OWNER", "API"]).optional(),
+        plan: zod.enum([
+          "FREE",
+          "PRO",
+          "FAMILY",
+          "DEVELOPER",
+          "API_BUILDER",
+          "ENTERPRISE",
+        ]),
         status: zod.string(),
         expiresAt: zod.coerce.date().nullish(),
         createdAt: zod.coerce.date(),
@@ -81,7 +123,49 @@ export const GetMeResponse = zod.object({
   subscription: zod
     .object({
       id: zod.string(),
-      plan: zod.enum(["FREE", "MONITOR", "MONITOR_PRO"]),
+      kind: zod.enum(["OWNER", "API"]).optional(),
+      plan: zod.enum([
+        "FREE",
+        "PRO",
+        "FAMILY",
+        "DEVELOPER",
+        "API_BUILDER",
+        "ENTERPRISE",
+      ]),
+      status: zod.string(),
+      expiresAt: zod.coerce.date().nullish(),
+      createdAt: zod.coerce.date(),
+    })
+    .nullish(),
+  ownerSubscription: zod
+    .object({
+      id: zod.string(),
+      kind: zod.enum(["OWNER", "API"]).optional(),
+      plan: zod.enum([
+        "FREE",
+        "PRO",
+        "FAMILY",
+        "DEVELOPER",
+        "API_BUILDER",
+        "ENTERPRISE",
+      ]),
+      status: zod.string(),
+      expiresAt: zod.coerce.date().nullish(),
+      createdAt: zod.coerce.date(),
+    })
+    .nullish(),
+  apiSubscription: zod
+    .object({
+      id: zod.string(),
+      kind: zod.enum(["OWNER", "API"]).optional(),
+      plan: zod.enum([
+        "FREE",
+        "PRO",
+        "FAMILY",
+        "DEVELOPER",
+        "API_BUILDER",
+        "ENTERPRISE",
+      ]),
       status: zod.string(),
       expiresAt: zod.coerce.date().nullish(),
       createdAt: zod.coerce.date(),
@@ -113,7 +197,49 @@ export const UpdateProfileResponse = zod.object({
   subscription: zod
     .object({
       id: zod.string(),
-      plan: zod.enum(["FREE", "MONITOR", "MONITOR_PRO"]),
+      kind: zod.enum(["OWNER", "API"]).optional(),
+      plan: zod.enum([
+        "FREE",
+        "PRO",
+        "FAMILY",
+        "DEVELOPER",
+        "API_BUILDER",
+        "ENTERPRISE",
+      ]),
+      status: zod.string(),
+      expiresAt: zod.coerce.date().nullish(),
+      createdAt: zod.coerce.date(),
+    })
+    .nullish(),
+  ownerSubscription: zod
+    .object({
+      id: zod.string(),
+      kind: zod.enum(["OWNER", "API"]).optional(),
+      plan: zod.enum([
+        "FREE",
+        "PRO",
+        "FAMILY",
+        "DEVELOPER",
+        "API_BUILDER",
+        "ENTERPRISE",
+      ]),
+      status: zod.string(),
+      expiresAt: zod.coerce.date().nullish(),
+      createdAt: zod.coerce.date(),
+    })
+    .nullish(),
+  apiSubscription: zod
+    .object({
+      id: zod.string(),
+      kind: zod.enum(["OWNER", "API"]).optional(),
+      plan: zod.enum([
+        "FREE",
+        "PRO",
+        "FAMILY",
+        "DEVELOPER",
+        "API_BUILDER",
+        "ENTERPRISE",
+      ]),
       status: zod.string(),
       expiresAt: zod.coerce.date().nullish(),
       createdAt: zod.coerce.date(),
@@ -487,7 +613,15 @@ export const ListActivityResponse = zod.object({
  */
 export const GetSubscriptionResponse = zod.object({
   id: zod.string(),
-  plan: zod.enum(["FREE", "MONITOR", "MONITOR_PRO"]),
+  kind: zod.enum(["OWNER", "API"]).optional(),
+  plan: zod.enum([
+    "FREE",
+    "PRO",
+    "FAMILY",
+    "DEVELOPER",
+    "API_BUILDER",
+    "ENTERPRISE",
+  ]),
   status: zod.string(),
   expiresAt: zod.coerce.date().nullish(),
   createdAt: zod.coerce.date(),
@@ -497,7 +631,7 @@ export const GetSubscriptionResponse = zod.object({
  * @summary Subscribe to a plan
  */
 export const SubscribeBody = zod.object({
-  plan: zod.enum(["MONITOR", "MONITOR_PRO"]),
+  plan: zod.enum(["PRO", "FAMILY", "API_BUILDER"]),
 });
 
 export const SubscribeResponse = zod.object({

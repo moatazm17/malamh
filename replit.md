@@ -43,8 +43,12 @@ lib/
 - `faces` — embedding (512-d JSON), consent level (OPEN/BLOCKED/TOKEN_REQUIRED), label, referenceImage (256×256 JPEG base64 thumbnail)
 - `api_keys` — name, hashed key, active flag, usage count
 - `consent_tokens` — one-time approval tokens for TOKEN_REQUIRED faces
-- `access_logs` — every consent check (face ID, requester, result, IP)
-- `subscriptions` — FREE / PRO / API_BUILDER plan per user, stripeCustomerId, stripeSubId
+- `access_logs` — every consent check (face ID, requester, result, IP, api_caller_user_id)
+- `subscriptions` — TWO independent rows per user, keyed by `(user_id, kind)`:
+  - `kind="OWNER"` — face-protection tier: `FREE` (1 face), `PRO` (5 faces, tokens, monitor), `FAMILY` (25 faces). Checks against the user's face are NEVER quota-limited.
+  - `kind="API"` — caller tier for AI companies: `DEVELOPER` (1k checks/mo), `API_BUILDER` (100k), `ENTERPRISE` (unlimited).
+  - Lazy-provisioned in `auth.ts/resolveOrCreateUser`; legacy single-row subs migrated automatically (MONITOR* → PRO/OWNER, DEVELOPER/API_BUILDER/ENTERPRISE → kind=API).
+- `access_logs` — additionally has `api_caller_user_id` for per-caller quota counting in `checkApiQuota`.
 - `scan_results` — web monitoring results (source badge, faceId FK, confidence)
 - `webhooks` — webhook endpoints per user
 

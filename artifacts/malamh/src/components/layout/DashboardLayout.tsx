@@ -51,8 +51,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Plan badge — best guess from user object, fallback FREE
-  const plan = ((user as any).plan as string | undefined)?.toUpperCase() ?? "FREE";
+  // Plan badge — show the OWNER plan (face-protection tier) on the sidebar.
+  const plan =
+    (((user as any).ownerSubscription?.plan ??
+      (user as any).subscription?.plan) as string | undefined)?.toUpperCase() ?? "FREE";
 
   return (
     <div className="min-h-[100dvh] flex" style={{ background: "var(--bg-primary)", color: "var(--text-primary)" }}>

@@ -9,6 +9,7 @@ export const accessLogsTable = pgTable(
     id: text("id").primaryKey(),
     faceId: text("face_id"),
     userId: text("user_id").references(() => usersTable.id, { onDelete: "cascade" }),
+    apiCallerUserId: text("api_caller_user_id").references(() => usersTable.id, { onDelete: "set null" }),
     requesterName: text("requester_name").notNull(),
     requesterIp: text("requester_ip").notNull(),
     action: text("action").notNull(),
@@ -18,6 +19,7 @@ export const accessLogsTable = pgTable(
   (t) => [
     index("access_logs_user_id_idx").on(t.userId),
     index("access_logs_face_id_idx").on(t.faceId),
+    index("access_logs_api_caller_idx").on(t.apiCallerUserId),
     index("access_logs_created_at_idx").on(t.createdAt),
   ],
 );
