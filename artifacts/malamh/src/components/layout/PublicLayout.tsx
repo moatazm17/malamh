@@ -46,7 +46,6 @@ export function PublicLayout({ children, transparentHeader = false }: { children
             <span className="font-semibold tracking-tight text-base" style={{ fontFamily: "var(--app-font-display)" }}>
               Malamh
             </span>
-            <span className="brand-arabic text-sm" style={{ color: "var(--text-secondary)" }}>ملامح</span>
           </Link>
 
           <nav className="hidden md:flex gap-8">
@@ -138,21 +137,33 @@ export function PublicLayout({ children, transparentHeader = false }: { children
       <main className="flex-1 flex flex-col">{children}</main>
 
       <footer className="surface-void mt-auto" style={{ borderTop: "1px solid var(--border-subtle)" }}>
-        <div className="max-w-7xl mx-auto px-6 py-12 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2.5">
-            <MalamhMark size={20} />
-            <span className="text-sm" style={{ color: "var(--text-muted)" }}>
-              Built with conviction that your face belongs to you.
-            </span>
+        <div className="max-w-7xl mx-auto px-6 py-12 flex flex-col gap-8">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-2.5">
+              <MalamhMark size={20} />
+              <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+                Built with conviction that your face belongs to you.
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-6 text-sm" style={{ color: "var(--text-muted)" }}>
+              <Link href="/" className="hover:text-white transition-colors">About</Link>
+              <Link href="/docs" className="hover:text-white transition-colors">API Docs</Link>
+              <Link href="/pricing" className="hover:text-white transition-colors">Pricing</Link>
+              <a href="#" className="hover:text-white transition-colors">Privacy</a>
+              <a href="#" className="hover:text-white transition-colors">Terms</a>
+            </div>
+            <span className="text-xs" style={{ color: "var(--text-muted)" }}>Made by Moataz</span>
           </div>
-          <div className="flex flex-wrap gap-6 text-sm" style={{ color: "var(--text-muted)" }}>
-            <Link href="/" className="hover:text-white transition-colors">About</Link>
-            <Link href="/docs" className="hover:text-white transition-colors">API Docs</Link>
-            <Link href="/pricing" className="hover:text-white transition-colors">Pricing</Link>
-            <a href="#" className="hover:text-white transition-colors">Privacy</a>
-            <a href="#" className="hover:text-white transition-colors">Terms</a>
+          <div
+            className="text-xs leading-relaxed text-center md:text-left max-w-3xl"
+            style={{ color: "var(--text-muted)", borderTop: "1px solid var(--border-subtle)", paddingTop: "1.5rem" }}
+          >
+            <span style={{ color: "var(--text-secondary)" }}>Malamh</span> comes from the Arabic word{" "}
+            <span className="brand-arabic" style={{ color: "var(--text-secondary)" }}>ملامح</span>{" "}
+            — meaning <em>features</em>: the small, irreplaceable details that make a face
+            uniquely yours. The same details AI tools steal in seconds. We built Malamh to give
+            them back.
           </div>
-          <span className="text-xs" style={{ color: "var(--text-muted)" }}>Made by Moataz</span>
         </div>
       </footer>
     </div>
@@ -161,21 +172,13 @@ export function PublicLayout({ children, transparentHeader = false }: { children
 
 export function MalamhMark({ size = 24 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="mh-grad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#4d7cff" />
-          <stop offset="1" stopColor="#7d4dff" />
-        </linearGradient>
-      </defs>
-      <path
-        d="M16 2 L28 8 V18 C28 24 22.5 28.5 16 30 C9.5 28.5 4 24 4 18 V8 L16 2 Z"
-        stroke="url(#mh-grad)"
-        strokeWidth="1.6"
-        fill="rgba(77,124,255,0.08)"
-      />
-      <circle cx="16" cy="14" r="3.5" stroke="url(#mh-grad)" strokeWidth="1.4" fill="none" />
-      <path d="M9 23 C11 19 14 18 16 18 C18 18 21 19 23 23" stroke="url(#mh-grad)" strokeWidth="1.4" fill="none" strokeLinecap="round" />
-    </svg>
+    <img
+      src="/malamh-logo.png"
+      alt="Malamh"
+      width={size}
+      height={size}
+      style={{ width: size, height: size, objectFit: "contain", display: "block" }}
+      draggable={false}
+    />
   );
 }

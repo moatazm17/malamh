@@ -67,7 +67,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <Link href="/dashboard/overview" className="flex items-center gap-2.5 hover:opacity-80 transition-opacity">
             <MalamhMark size={26} />
             <span className="font-semibold tracking-tight" style={{ fontFamily: "var(--app-font-display)" }}>Malamh</span>
-            <span className="brand-arabic text-sm" style={{ color: "var(--text-secondary)" }}>ملامح</span>
           </Link>
         </div>
 

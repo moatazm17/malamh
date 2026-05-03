@@ -93,7 +93,6 @@ export default function PublicProfile() {
         >
           <MalamhMark size={14} />
           Protected by Malamh
-          <span className="brand-arabic">ملامح</span>
         </div>
       </div>
     </PublicLayout>

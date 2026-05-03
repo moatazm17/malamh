@@ -33,7 +33,6 @@ export default function ConsentApprove() {
             <div className="flex items-center gap-2.5">
               <MalamhMark size={28} />
               <span className="font-semibold tracking-tight text-lg" style={{ fontFamily: "var(--app-font-display)" }}>Malamh</span>
-              <span className="brand-arabic" style={{ color: "var(--text-secondary)" }}>ملامح</span>
             </div>
           </div>
           <div className="glass-card-elevated p-8 text-center">

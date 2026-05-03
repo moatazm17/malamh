@@ -133,7 +133,6 @@ export default function Share() {
         <Link href="/dashboard/overview" className="inline-flex items-center gap-2 hover:opacity-80">
           <MalamhMark size={22} />
           <span className="font-semibold tracking-tight" style={{ fontFamily: "var(--app-font-display)" }}>Malamh</span>
-          <span className="brand-arabic text-xs" style={{ color: "var(--text-secondary)" }}>ملامح</span>
         </Link>
       </div>
 

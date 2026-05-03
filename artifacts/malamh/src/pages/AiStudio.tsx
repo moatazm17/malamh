@@ -283,7 +283,6 @@ export default function AiStudio() {
             <Link href="/" className="flex items-center gap-2.5 hover:opacity-80">
               <MalamhMark size={26} />
               <span className="font-semibold tracking-tight" style={{ fontFamily: "var(--app-font-display)" }}>Malamh</span>
-              <span className="brand-arabic text-sm" style={{ color: "var(--text-secondary)" }}>ملامح</span>
             </Link>
             <span className="badge-mh badge-blue ml-2 text-[0.65rem]" style={{ padding: "3px 10px" }}>AI STUDIO</span>
           </div>
