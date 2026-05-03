@@ -59,3 +59,27 @@ id = "myLYj4T_m8TZsYKrNVlzf"
 uri = "file://attached_assets/logo_concepts/v2_full_bold.png"
 type = "image"
 title = "Variant 3 — face mesh M (bold strokes)"
+
+[[outputs]]
+id = "FbV02A5ZxnQB2nobOlDt8"
+uri = "file://attached_assets/logo_concepts/shield_m_morphed.png"
+type = "image"
+title = "1 — Shield morphed into M (single silhouette)"
+
+[[outputs]]
+id = "9LKGuQjkKbH8UVTjjBpzT"
+uri = "file://attached_assets/logo_concepts/m_inside_shield.png"
+type = "image"
+title = "2 — M inside a classic shield outline"
+
+[[outputs]]
+id = "Mg2YV2Wm5FwawP2GT36cw"
+uri = "file://attached_assets/logo_concepts/shield_cutout_m.png"
+type = "image"
+title = "3 — Solid shield with M cut out (negative space)"
+
+[[outputs]]
+id = "ESyXYMyRvFWmEJUQWWcU5"
+uri = "file://attached_assets/logo_concepts/shield_m_peaks.png"
+type = "image"
+title = "4 — Shield with M-shaped peaks on top"
