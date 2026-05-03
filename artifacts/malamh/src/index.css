@@ -457,6 +457,11 @@
 .anim-bounce-soft { animation: mh-bounce-soft 2s ease-in-out infinite; }
 .anim-pulse-glow { animation: mh-pulse-glow 2.4s ease-in-out infinite; }
 .anim-radar { animation: mh-radar-sweep 3s linear infinite; }
+@keyframes mh-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.anim-shimmer { animation: mh-shimmer 2s linear infinite; }
 
 .delay-0  { animation-delay: 0ms; }
 .delay-100 { animation-delay: 100ms; }

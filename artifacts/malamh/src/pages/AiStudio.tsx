@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Link } from "wouter";
-import { ShieldCheck, ShieldAlert, ShieldOff, Upload, Camera, Loader2, ExternalLink, Sparkles, X } from "lucide-react";
+import { ShieldCheck, ShieldAlert, ShieldOff, Upload, Camera, Loader2, ExternalLink, Sparkles, X, RefreshCw, Download } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { MalamhMark } from "@/components/layout/PublicLayout";
@@ -15,13 +15,17 @@ const PROMPT_CHIPS = [
   "Create a fantasy character portrait",
 ];
 
-const CSS_FILTERS: string[] = [
-  "hue-rotate(30deg) saturate(1.8) brightness(1.1)",
-  "sepia(0.6) contrast(1.3) brightness(1.05)",
-  "hue-rotate(200deg) saturate(2) contrast(1.2)",
-  "grayscale(0.5) contrast(1.4) brightness(1.15) sepia(0.3)",
-  "hue-rotate(90deg) saturate(1.5) contrast(1.1)",
-];
+function pollinationsUrl(prompt: string, seed: number): string {
+  const params = new URLSearchParams({
+    width: "1024",
+    height: "1024",
+    model: "flux",
+    nologo: "true",
+    enhance: "true",
+    seed: String(seed),
+  });
+  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${params.toString()}`;
+}
 
 async function compressTo1024(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -57,14 +61,24 @@ export default function AiStudio() {
   const [status, setStatus] = useState<ConsentStatus>("idle");
   const [matchScore, setMatchScore] = useState<number | null>(null);
   const [authUrl, setAuthUrl] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [cssFilter, setCssFilter] = useState("");
+  const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
+  const [generationSeed, setGenerationSeed] = useState<number>(0);
+  const [generationPrompt, setGenerationPrompt] = useState<string>("");
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [consentOutcome, setConsentOutcome] = useState<"open" | "no_match" | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const genTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const genIdRef = useRef(0);
+
+  const clearPending = useCallback(() => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    if (genTimeoutRef.current) { clearTimeout(genTimeoutRef.current); genTimeoutRef.current = null; }
+  }, []);
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -113,8 +127,11 @@ export default function AiStudio() {
   }, [closeCamera]);
 
   useEffect(() => {
-    return () => stopCamera();
-  }, [stopCamera]);
+    return () => {
+      stopCamera();
+      clearPending();
+    };
+  }, [stopCamera, clearPending]);
 
   const loadFile = useCallback(async (file: File) => {
     if (!file.type.startsWith("image/")) return;
@@ -137,14 +154,17 @@ export default function AiStudio() {
   const runGeneration = async () => {
     if (!imageBase64) { toast({ title: "Upload a photo first", variant: "destructive" }); return; }
     if (!prompt.trim()) { toast({ title: "Enter a prompt first", variant: "destructive" }); return; }
-    if (pollRef.current) clearInterval(pollRef.current);
-    setStatus("checking"); setMatchScore(null); setAuthUrl(null); setProgress(0);
+    clearPending();
+    genIdRef.current += 1; // invalidate any in-flight onLoad/onError from a previous run
+    setStatus("checking"); setMatchScore(null); setAuthUrl(null);
+    setGeneratedUrl(null); setGenerationError(null); setConsentOutcome(null);
 
+    const promptAtRunStart = prompt;
     try {
       const rawB64 = imageBase64.split(",")[1] || imageBase64;
       const res = await apiFetch("/internal/consent-check", {
         method: "POST",
-        body: JSON.stringify({ imageBase64: rawB64, requesterName: "AI Studio", purpose: prompt }),
+        body: JSON.stringify({ imageBase64: rawB64, requesterName: "AI Studio", purpose: promptAtRunStart }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -156,14 +176,20 @@ export default function AiStudio() {
       setMatchScore(data.matchScore ?? null);
       if (data.status === "blocked") setStatus("blocked");
       else if (data.status === "open" || data.status === "no_match") {
-        setStatus(data.status === "no_match" ? "no_match" : "open");
-        setTimeout(() => fakeGenerate(), data.status === "no_match" ? 800 : 400);
+        const outcome = data.status as "open" | "no_match";
+        setConsentOutcome(outcome);
+        setStatus(outcome);
+        const delay = outcome === "no_match" ? 800 : 400;
+        genTimeoutRef.current = setTimeout(() => {
+          genTimeoutRef.current = null;
+          startImageGeneration(promptAtRunStart);
+        }, delay);
       } else if (data.status === "token_required") {
         setStatus("token_required");
         setAuthUrl(data.authUrl ?? null);
         if (data.authUrl) {
           const parts = data.authUrl.split("/");
-          startPolling(parts[parts.length - 1]);
+          startPolling(parts[parts.length - 1], promptAtRunStart);
         }
       }
     } catch (err: any) {
@@ -172,30 +198,69 @@ export default function AiStudio() {
     }
   };
 
-  const fakeGenerate = () => {
-    setCssFilter(CSS_FILTERS[Math.floor(Math.random() * CSS_FILTERS.length)]);
+  const startImageGeneration = (effectivePrompt: string, newSeed?: number) => {
+    const seed = newSeed ?? Math.floor(Math.random() * 1_000_000);
+    genIdRef.current += 1;
+    setGenerationSeed(seed);
+    setGenerationPrompt(effectivePrompt);
+    setGenerationError(null);
+    setGeneratedUrl(pollinationsUrl(effectivePrompt, seed));
     setStatus("generating");
-    setProgress(0);
-    let p = 0;
-    const interval = setInterval(() => {
-      p += Math.random() * 18 + 4;
-      if (p >= 100) { p = 100; clearInterval(interval); setProgress(100); setTimeout(() => setStatus("done"), 400); }
-      else setProgress(Math.round(p));
-    }, 200);
   };
 
-  const startPolling = (token: string) => {
+  const handleImageLoaded = (id: number) => {
+    if (id !== genIdRef.current) return; // stale event from a prior generation
+    setStatus("done");
+  };
+
+  const handleImageError = (id: number) => {
+    if (id !== genIdRef.current) return;
+    setGenerationError("The image generator didn't respond in time. Try again — flux can be busy.");
+    setStatus("done");
+  };
+
+  const regenerate = () => {
+    // Use the prompt that was actually used for the last successful generation,
+    // not whatever is currently in the input field.
+    if (!generationPrompt) return;
+    startImageGeneration(generationPrompt);
+  };
+
+  const downloadImage = async () => {
+    if (!generatedUrl) return;
+    try {
+      const res = await fetch(generatedUrl);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `malamh-${generationSeed}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "Could not download image", variant: "destructive" });
+    }
+  };
+
+  const startPolling = (token: string, effectivePrompt: string) => {
     pollRef.current = setInterval(async () => {
       try {
         const res = await apiFetch(`/consent/status/${token}`);
         if (!res.ok) return;
         const data = await res.json();
         if (data.status === "approved") {
-          if (pollRef.current) clearInterval(pollRef.current);
+          if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+          setConsentOutcome("open");
           setStatus("open");
-          setTimeout(() => fakeGenerate(), 400);
+          genTimeoutRef.current = setTimeout(() => {
+            genTimeoutRef.current = null;
+            startImageGeneration(effectivePrompt);
+          }, 400);
         } else if (data.status === "denied" || data.status === "expired") {
-          if (pollRef.current) clearInterval(pollRef.current);
+          if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
           setStatus("denied");
         }
       } catch { /* keep polling */ }
@@ -203,8 +268,10 @@ export default function AiStudio() {
   };
 
   const reset = () => {
-    if (pollRef.current) clearInterval(pollRef.current);
-    setStatus("idle"); setMatchScore(null); setAuthUrl(null); setProgress(0);
+    clearPending();
+    genIdRef.current += 1;
+    setStatus("idle"); setMatchScore(null); setAuthUrl(null);
+    setGeneratedUrl(null); setGenerationError(null); setConsentOutcome(null);
   };
 
   return (
@@ -307,7 +374,21 @@ export default function AiStudio() {
           <div className="glass-card-elevated p-7 min-h-[480px] flex flex-col">
             <div className="section-label mb-4">Result</div>
             <div className="flex-1 flex flex-col items-center justify-center text-center">
-              <ResultPanel status={status} matchScore={matchScore} authUrl={authUrl} progress={progress} photoSrc={photoSrc} cssFilter={cssFilter} />
+              <ResultPanel
+                status={status}
+                matchScore={matchScore}
+                authUrl={authUrl}
+                photoSrc={photoSrc}
+                generatedUrl={generatedUrl}
+                generationPrompt={generationPrompt}
+                generationError={generationError}
+                consentOutcome={consentOutcome}
+                generationId={genIdRef.current}
+                onImageLoaded={handleImageLoaded}
+                onImageError={handleImageError}
+                onRegenerate={regenerate}
+                onDownload={downloadImage}
+              />
             </div>
           </div>
         </div>
@@ -377,8 +458,23 @@ export default function AiStudio() {
   );
 }
 
-function ResultPanel({ status, matchScore, authUrl, progress, photoSrc, cssFilter }: {
-  status: ConsentStatus; matchScore: number | null; authUrl: string | null; progress: number; photoSrc: string | null; cssFilter: string;
+function ResultPanel({
+  status, matchScore, authUrl, photoSrc, generatedUrl, generationPrompt, generationError,
+  consentOutcome, generationId, onImageLoaded, onImageError, onRegenerate, onDownload,
+}: {
+  status: ConsentStatus;
+  matchScore: number | null;
+  authUrl: string | null;
+  photoSrc: string | null;
+  generatedUrl: string | null;
+  generationPrompt: string;
+  generationError: string | null;
+  consentOutcome: "open" | "no_match" | null;
+  generationId: number;
+  onImageLoaded: (id: number) => void;
+  onImageError: (id: number) => void;
+  onRegenerate: () => void;
+  onDownload: () => void;
 }) {
   if (status === "idle") {
     return (
@@ -438,10 +534,20 @@ function ResultPanel({ status, matchScore, authUrl, progress, photoSrc, cssFilte
   }
   if (status === "denied") {
     return (
-      <div>
-        <ShieldOff className="w-14 h-14 mx-auto mb-4" style={{ color: "var(--accent-red)" }} />
-        <span className="badge-mh badge-blocked text-sm">CONSENT DENIED</span>
-        <p className="text-sm mt-3" style={{ color: "var(--text-secondary)" }}>The person rejected this generation request.</p>
+      <div className="w-full max-w-sm">
+        <div className="relative inline-block mb-4">
+          {photoSrc && (
+            <img src={photoSrc} alt="Denied" className="w-44 h-44 object-cover rounded-xl mx-auto" style={{ filter: "blur(14px) saturate(0.3)" }} />
+          )}
+          <div className="absolute inset-0 flex items-center justify-center rounded-xl" style={{ background: "rgba(255,77,94,0.3)", border: "2px solid var(--accent-red)" }}>
+            <ShieldOff className="w-14 h-14" style={{ color: "var(--accent-red)" }} />
+          </div>
+        </div>
+        <span className="badge-mh badge-blocked text-sm" style={{ padding: "6px 16px" }}>CONSENT DENIED</span>
+        <p className="text-sm mt-3 font-medium" style={{ color: "var(--text-primary)" }}>The face owner rejected this generation.</p>
+        <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
+          Malamh blocked it before any pixel was generated. This is exactly what the registry is for.
+        </p>
       </div>
     );
   }
@@ -465,29 +571,84 @@ function ResultPanel({ status, matchScore, authUrl, progress, photoSrc, cssFilte
   }
   if (status === "generating") {
     return (
-      <div className="w-full max-w-xs">
-        <Loader2 className="w-12 h-12 mx-auto animate-spin mb-4" style={{ color: "var(--accent-green)" }} />
-        <p className="text-sm font-medium mb-3" style={{ color: "var(--accent-green)" }}>Generating…</p>
-        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--bg-void)" }}>
-          <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: "var(--accent-green)", boxShadow: "0 0 12px var(--accent-green)" }} />
+      <div className="w-full max-w-sm">
+        <div
+          className="relative w-full aspect-square rounded-2xl overflow-hidden mb-4"
+          style={{ background: "var(--bg-void)", border: "1px solid var(--border-subtle)" }}
+        >
+          {/* Hidden img so onLoad fires when the real image arrives */}
+          {generatedUrl && (
+            <img
+              key={generationId}
+              src={generatedUrl}
+              alt="Generating…"
+              className="absolute inset-0 w-full h-full object-cover opacity-0"
+              onLoad={() => onImageLoaded(generationId)}
+              onError={() => onImageError(generationId)}
+            />
+          )}
+          {/* Shimmer skeleton */}
+          <div className="absolute inset-0 anim-shimmer" style={{
+            background: "linear-gradient(90deg, transparent 0%, rgba(0,212,138,0.08) 50%, transparent 100%)",
+            backgroundSize: "200% 100%",
+          }} />
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+            <Loader2 className="w-12 h-12 animate-spin" style={{ color: "var(--accent-green)" }} />
+            <p className="text-sm font-medium" style={{ color: "var(--accent-green)" }}>Generating with FLUX…</p>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>This usually takes 5–15 seconds</p>
+          </div>
         </div>
-        <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>{progress}%</p>
+        <p className="text-xs italic text-center" style={{ color: "var(--text-muted)" }}>"{generationPrompt}"</p>
       </div>
     );
   }
   if (status === "done") {
+    if (generationError) {
+      return (
+        <div className="w-full max-w-sm">
+          <ShieldAlert className="w-14 h-14 mx-auto mb-4" style={{ color: "var(--accent-amber)" }} />
+          <p className="text-sm font-medium mb-2">Generation failed</p>
+          <p className="text-xs mb-4" style={{ color: "var(--text-muted)" }}>{generationError}</p>
+          <button onClick={onRegenerate} className="btn-mh btn-mh-primary text-xs" style={{ padding: "8px 16px" }}>
+            <RefreshCw className="w-3.5 h-3.5" /> Try again
+          </button>
+        </div>
+      );
+    }
     return (
-      <div>
-        <div className="relative inline-block mb-4">
-          {photoSrc && (
-            <img src={photoSrc} alt="Generated" className="w-48 h-48 object-cover rounded-xl" style={{ filter: cssFilter, boxShadow: "0 0 40px rgba(0,212,138,0.2)" }} />
+      <div className="w-full max-w-sm">
+        <div className="relative inline-block mb-4 w-full">
+          {generatedUrl && (
+            <img
+              src={generatedUrl}
+              alt="Generated"
+              className="w-full aspect-square object-cover rounded-2xl"
+              style={{ boxShadow: "0 0 40px rgba(0,212,138,0.2)", border: "1px solid var(--accent-green)" }}
+            />
           )}
-          <div className="absolute top-2 right-2 px-2 py-1 rounded-full text-[0.65rem] font-bold flex items-center gap-1" style={{ background: "var(--accent-green)", color: "white" }}>
-            <ShieldCheck className="w-3 h-3" /> CONSENT GRANTED
+          <div
+            className="absolute top-3 right-3 px-2 py-1 rounded-full text-[0.65rem] font-bold flex items-center gap-1"
+            style={{
+              background: consentOutcome === "no_match" ? "var(--accent-blue)" : "var(--accent-green)",
+              color: "white",
+            }}
+          >
+            <ShieldCheck className="w-3 h-3" />
+            {consentOutcome === "no_match" ? "UNREGISTERED" : "CONSENT GRANTED"}
           </div>
         </div>
-        <p className="text-sm mt-3 font-medium" style={{ color: "var(--accent-green)" }}>Generation complete</p>
-        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>Applied artistic style filter</p>
+        <p className="text-xs italic mb-4" style={{ color: "var(--text-muted)" }}>"{generationPrompt}"</p>
+        <div className="flex gap-2 justify-center">
+          <button onClick={onRegenerate} className="btn-mh btn-mh-ghost text-xs" style={{ padding: "8px 14px" }}>
+            <RefreshCw className="w-3.5 h-3.5" /> Regenerate
+          </button>
+          <button onClick={onDownload} className="btn-mh btn-mh-primary text-xs" style={{ padding: "8px 14px" }}>
+            <Download className="w-3.5 h-3.5" /> Download
+          </button>
+        </div>
+        <p className="text-[0.65rem] mt-3" style={{ color: "var(--text-muted)" }}>
+          Generated by FLUX via Pollinations.ai
+        </p>
       </div>
     );
   }
