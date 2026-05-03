@@ -63,7 +63,7 @@ export default function Pricing() {
   const handleSubscribe = async (planId: string) => {
     setLoading(planId);
     try {
-      const res = await apiFetch("/api/billing/checkout", { method: "POST", body: JSON.stringify({ plan: planId }) });
+      const res = await apiFetch("/billing/checkout", { method: "POST", body: JSON.stringify({ plan: planId }) });
       if (res.status === 401) { setLocation("/register"); return; }
       const data = await res.json();
       if (data.checkoutUrl) window.location.href = data.checkoutUrl;

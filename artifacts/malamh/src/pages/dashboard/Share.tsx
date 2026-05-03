@@ -37,7 +37,7 @@ export default function Share() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await apiFetch("/api/stats/shares");
+        const res = await apiFetch("/stats/shares");
         if (res.ok) {
           const data = await res.json();
           setShareTotal(data.totalShares ?? 0);
@@ -48,7 +48,7 @@ export default function Share() {
 
   const fireShare = async (platform: Platform) => {
     // Fire-and-forget — don't block UI
-    apiFetch("/api/internal/share-count", {
+    apiFetch("/internal/share-count", {
       method: "POST",
       body: JSON.stringify({ platform }),
     }).then(() => setShareTotal((n) => (n ?? 0) + 1)).catch(() => {});

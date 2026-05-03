@@ -88,7 +88,7 @@ export default function Settings() {
   const openPortal = async () => {
     setPortalLoading(true);
     try {
-      const res = await apiFetch("/api/billing/portal", { method: "POST" });
+      const res = await apiFetch("/billing/portal", { method: "POST" });
       const data = await res.json();
       if (data.portalUrl) window.location.href = data.portalUrl;
       else toast({ title: data.message ?? "Subscription managed" });
