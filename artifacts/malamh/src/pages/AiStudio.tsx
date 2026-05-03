@@ -74,6 +74,15 @@ export default function AiStudio() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const genTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const genIdRef = useRef(0);
+  const resultRef = useRef<HTMLDivElement>(null);
+
+  // Scroll the result panel into view whenever a meaningful state appears.
+  // On mobile the result column stacks below the input, so users miss it otherwise.
+  useEffect(() => {
+    if (status !== "idle") {
+      resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [status]);
 
   const clearPending = useCallback(() => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
@@ -370,7 +379,7 @@ export default function AiStudio() {
           </div>
 
           {/* RIGHT — result */}
-          <div className="glass-card-elevated p-7 min-h-[480px] flex flex-col">
+          <div ref={resultRef} className="glass-card-elevated p-7 min-h-[480px] flex flex-col scroll-mt-24">
             <div className="section-label mb-4">Result</div>
             <div className="flex-1 flex flex-col items-center justify-center text-center">
               <ResultPanel
