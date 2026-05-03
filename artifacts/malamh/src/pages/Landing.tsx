@@ -5,7 +5,7 @@ import { useScrollReveal } from "@/hooks/use-scroll-reveal";
 import {
   ChevronDown, Radar, Bell, FileText, CheckCircle2,
   ScanLine, ToggleRight, Shield, ArrowRight, XCircle, KeyRound, Loader2, Sparkles,
-  Upload, Wand2, Lock, Unlock,
+  Upload, Wand2, Lock, Unlock, Code2, Copy, PlayCircle,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
@@ -309,11 +309,27 @@ const CONSENT_OPTIONS = [
 /* ---------- The cinematic stage ---------- */
 
 function SectionLiveDemo() {
+  const [tab, setTab] = useState<"flow" | "api">("flow");
   const [picked, setPicked] = useState<DemoPersona | null>(null);
   const [step, setStep] = useState<DemoStep>("idle");
   const [result, setResult] = useState<DemoResult | null>(null);
+  const [apiTabPulse, setApiTabPulse] = useState(false);
   const runId = useRef(0);
   const stageRef = useRef<HTMLDivElement | null>(null);
+
+  // Default a persona on the API tab so the panel always has content.
+  useEffect(() => {
+    if (tab === "api" && !picked) setPicked(DEMO_PERSONAS[0]);
+  }, [tab, picked]);
+
+  // Pulse the "Integrate it" tab once after the cinematic verdict lands.
+  useEffect(() => {
+    if (step === "verdict" && tab === "flow") {
+      setApiTabPulse(true);
+      const t = setTimeout(() => setApiTabPulse(false), 4500);
+      return () => clearTimeout(t);
+    }
+  }, [step, tab]);
 
   const reset = () => {
     runId.current += 1;
@@ -377,6 +393,11 @@ function SectionLiveDemo() {
     result?.status === "open" ? "OPEN CONSENT" :
     "TOKEN REQUIRED";
 
+  const handlePick = (p: DemoPersona) => {
+    if (tab === "flow") play(p);
+    else setPicked(p);
+  };
+
   return (
     <section id="demo" className="py-32 px-6 relative">
       <div className="max-w-6xl mx-auto relative">
@@ -387,18 +408,53 @@ function SectionLiveDemo() {
             <div className="section-label mb-3 inline-flex items-center gap-2">
               <Sparkles className="w-3.5 h-3.5" /> Live demo
             </div>
-            <h2 className="headline-section text-3xl md:text-5xl mb-4">Watch the full flow.</h2>
+            <h2 className="headline-section text-3xl md:text-5xl mb-4">See it in action.</h2>
             <p className="max-w-2xl mx-auto text-base md:text-lg" style={{ color: "var(--text-secondary)" }}>
-              Pick a person. We'll register their face, set their consent, then pretend an AI image
-              generator tries to use them. Watch how the gate decides.
+              One story, two audiences. Watch how a real person defends their face — then see how
+              AI tools call our API to respect that choice.
             </p>
           </div>
         </Reveal>
 
-        <div className="grid lg:grid-cols-[280px,1fr] gap-8 mt-14 relative">
-          {/* Persona picker */}
+        {/* Tab switcher */}
+        <div className="flex justify-center mt-10 mb-8">
+          <div
+            className="inline-flex rounded-xl p-1 gap-1"
+            role="tablist"
+            aria-label="Demo audience"
+            style={{ background: "var(--bg-secondary)", border: "1px solid var(--border-subtle)" }}
+          >
+            {([
+              { key: "flow" as const, label: "Watch it happen", icon: PlayCircle, pulse: false },
+              { key: "api"  as const, label: "Integrate it",     icon: Code2,      pulse: apiTabPulse && tab === "flow" },
+            ]).map((t) => {
+              const Icon = t.icon;
+              const active = tab === t.key;
+              return (
+                <button
+                  key={t.key}
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setTab(t.key)}
+                  className="px-5 py-2.5 rounded-lg text-sm font-semibold inline-flex items-center gap-2 transition-all relative focus:outline-none focus-visible:ring-2"
+                  style={{
+                    background: active ? "var(--accent-blue)" : "transparent",
+                    color: active ? "white" : "var(--text-secondary)",
+                    animation: t.pulse ? "mh-pulse-glow 1.6s ease-in-out infinite" : undefined,
+                  }}
+                >
+                  <Icon className="w-4 h-4" />
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="grid lg:grid-cols-[280px,1fr] gap-8 relative">
+          {/* Persona picker — shared between tabs */}
           <div className="flex flex-col gap-4">
-            <div className="section-label">Pick a target</div>
+            <div className="section-label">{tab === "flow" ? "Pick a target" : "Try a response"}</div>
             <div className="grid grid-cols-3 lg:grid-cols-1 gap-3" role="radiogroup" aria-label="Choose a demo persona">
               {DEMO_PERSONAS.map((p) => (
                 <DemoPersonaCard
@@ -406,18 +462,30 @@ function SectionLiveDemo() {
                   persona={p}
                   active={picked?.slug === p.slug}
                   disabled={false}
-                  onPick={() => play(p)}
+                  onPick={() => handlePick(p)}
                 />
               ))}
             </div>
             <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              All three faces are AI-generated and the personas are fictional. The verdict is a
-              real call to <span className="font-mono">/api/v1/demo/check</span>.{" "}
-              <Link href="/playground" className="underline">Try with your own face →</Link>
+              {tab === "flow" ? (
+                <>
+                  All three faces are AI-generated and the personas are fictional. The verdict is a
+                  real call to <span className="font-mono">/api/v1/demo/check</span>.{" "}
+                  <Link href="/playground" className="underline">Try with your own face →</Link>
+                </>
+              ) : (
+                <>
+                  This is the real endpoint shape. Drop the snippet on the right into your AI tool
+                  and you're done. <Link href="/docs" className="underline">Full API docs →</Link>
+                </>
+              )}
             </p>
           </div>
 
-          {/* Cinematic stage */}
+          {/* Right side — swaps based on tab */}
+          {tab === "api" ? (
+            <DeveloperAPIPanel persona={picked ?? DEMO_PERSONAS[0]} />
+          ) : (
           <div
             ref={stageRef}
             className="glass-card p-6 md:p-8 min-h-[520px] flex flex-col relative overflow-hidden scroll-mt-24"
@@ -614,9 +682,177 @@ function SectionLiveDemo() {
               </>
             )}
           </div>
+          )}
         </div>
       </div>
     </section>
+  );
+}
+
+/* ---------- Developer API panel (Tab 2) ---------- */
+
+type Lang = "curl" | "js" | "python";
+const API_LANGS: { key: Lang; label: string }[] = [
+  { key: "curl",   label: "cURL" },
+  { key: "js",     label: "JavaScript" },
+  { key: "python", label: "Python" },
+];
+
+function codeFor(lang: Lang, persona: DemoPersona): string {
+  const file = `${persona.slug}-photo.jpg`;
+  switch (lang) {
+    case "curl":
+      return `curl -X POST https://malamh.app/api/v1/consent/check \\
+  -H "Authorization: Bearer mh_live_••••••••" \\
+  -F "image=@${file}"`;
+    case "js":
+      return `import { Malamh } from "@malamh/sdk";
+
+const malamh = new Malamh({ apiKey: process.env.MALAMH_KEY });
+
+const decision = await malamh.consent.check({
+  image: await fs.readFile("${file}"),
+});
+
+if (decision.status === "blocked") {
+  throw new Error("Subject denied AI use of their face");
+}`;
+    case "python":
+      return `from malamh import Malamh
+
+malamh = Malamh(api_key=os.environ["MALAMH_KEY"])
+
+decision = malamh.consent.check(
+    image=open("${file}", "rb"),
+)
+
+if decision.status == "blocked":
+    raise PermissionError("Subject denied AI use of their face")`;
+  }
+}
+
+function responseFor(persona: DemoPersona) {
+  if (persona.slug === "blocked") return {
+    status: "blocked",
+    matchScore: 98.7,
+    consentLevel: "BLOCKED",
+    persona: { name: persona.label, role: "Private citizen" },
+    authUrl: null,
+  };
+  if (persona.slug === "token") return {
+    status: "token_required",
+    matchScore: 96.4,
+    consentLevel: "TOKEN_REQUIRED",
+    persona: { name: persona.label, role: "Public figure" },
+    authUrl: "https://malamh.app/approve/req_8a3f9c",
+  };
+  return {
+    status: "open",
+    matchScore: 97.1,
+    consentLevel: "OPEN",
+    persona: { name: persona.label, role: "Editorial subject" },
+    authUrl: null,
+  };
+}
+
+function DeveloperAPIPanel({ persona }: { persona: DemoPersona }) {
+  const [lang, setLang] = useState<Lang>("curl");
+  const [copied, setCopied] = useState(false);
+  const code = codeFor(lang, persona);
+  const response = responseFor(persona);
+  const statusColor =
+    persona.slug === "blocked" ? "var(--accent-red)" :
+    persona.slug === "open"    ? "#22c55e" :
+    "var(--accent-blue)";
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { /* clipboard blocked, ignore */ }
+  };
+
+  return (
+    <div className="glass-card p-6 md:p-8 min-h-[520px] flex flex-col anim-fade-in">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5 pb-4" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+        <div className="flex items-center gap-2">
+          <Code2 className="w-4 h-4" style={{ color: "var(--accent-blue)" }} />
+          <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>One call. One decision.</span>
+        </div>
+        <span className="text-[10px] tracking-widest font-semibold" style={{ color: "var(--text-muted)" }}>FOR AI BUILDERS</span>
+      </div>
+
+      {/* Language tabs + copy */}
+      <div className="flex items-center gap-1 mb-3 flex-wrap">
+        {API_LANGS.map((l) => {
+          const active = lang === l.key;
+          return (
+            <button
+              key={l.key}
+              onClick={() => setLang(l.key)}
+              className="px-3 py-1.5 rounded-md text-xs font-mono transition-all focus:outline-none focus-visible:ring-2"
+              style={{
+                background: active ? "var(--bg-secondary)" : "transparent",
+                color: active ? "var(--accent-blue)" : "var(--text-muted)",
+                border: `1px solid ${active ? "var(--border-subtle)" : "transparent"}`,
+              }}
+            >
+              {l.label}
+            </button>
+          );
+        })}
+        <div className="ml-auto">
+          <button
+            onClick={copy}
+            aria-label="Copy code snippet"
+            className="px-3 py-1.5 rounded-md text-xs inline-flex items-center gap-1.5 transition-all focus:outline-none focus-visible:ring-2"
+            style={{
+              background: "var(--bg-secondary)",
+              color: copied ? "#22c55e" : "var(--text-muted)",
+              border: "1px solid var(--border-subtle)",
+            }}
+          >
+            {copied ? <CheckCircle2 className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
+      </div>
+
+      {/* Code block */}
+      <pre
+        className="rounded-xl p-4 font-mono text-[12.5px] leading-relaxed overflow-x-auto"
+        style={{ background: "var(--bg-void)", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)" }}
+      >
+        <code>{code}</code>
+      </pre>
+
+      {/* Response */}
+      <div className="mt-5 flex-1 flex flex-col">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-[11px] tracking-widest font-semibold" style={{ color: "var(--text-muted)" }}>
+            ← RESPONSE
+          </div>
+          <div className="flex items-center gap-2 text-[11px] font-mono" style={{ color: statusColor }}>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: statusColor, boxShadow: `0 0 8px ${statusColor}` }} />
+            200 OK · {response.status}
+          </div>
+        </div>
+        <pre
+          className="flex-1 rounded-xl p-4 font-mono text-[12.5px] leading-relaxed overflow-x-auto transition-all"
+          style={{ background: "var(--bg-void)", border: `1px solid ${statusColor}55`, color: "var(--text-secondary)", boxShadow: `inset 0 0 32px ${statusColor}11` }}
+        >
+          <code>{JSON.stringify(response, null, 2)}</code>
+        </pre>
+
+        <div className="mt-4 text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+          {persona.slug === "blocked" && <>→ Your AI tool refuses to generate. The subject's face stays out of the model's output.</>}
+          {persona.slug === "token"   && <>→ Your AI tool pauses, sends the auth URL to the subject, and resumes only after they approve.</>}
+          {persona.slug === "open"    && <>→ Your AI tool proceeds. You log the consent record for your audit trail.</>}
+        </div>
+      </div>
+    </div>
   );
 }
 
