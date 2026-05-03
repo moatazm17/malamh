@@ -101,3 +101,21 @@ id = "l38bFsP0VjJABdRnOV2lE"
 uri = "file://attached_assets/logo_concepts/final_blue_v3.png"
 type = "image"
 title = "v3 — dark navy → brand blue gradient"
+
+[[outputs]]
+id = "aWb3rvFjsc5sJ8LZbk9jX"
+uri = "file://attached_assets/logo_concepts/wireframe_m_a.png"
+type = "image"
+title = "A — wireframe M with corner brackets"
+
+[[outputs]]
+id = "QvkQQJQ8_Z-nw3p7zo5YU"
+uri = "file://attached_assets/logo_concepts/wireframe_m_b.png"
+type = "image"
+title = "B — wireframe M with neon glow"
+
+[[outputs]]
+id = "Q5I7GXid7LfoOUHMhw6Qx"
+uri = "file://attached_assets/logo_concepts/wireframe_m_c.png"
+type = "image"
+title = "C — wireframe M with viewfinder brackets"
