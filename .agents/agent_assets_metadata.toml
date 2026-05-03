@@ -1,0 +1,20 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "ckC_0ZWrzAk61y2mefy9R"
+uri = "file://artifacts/malamh/public/demo/persona-blocked.png"
+type = "image"
+title = "demo persona blocked"
+
+[[generated]]
+id = "yw4_jk4_ojMhy8AgNaSsn"
+uri = "file://artifacts/malamh/public/demo/persona-token.png"
+type = "image"
+title = "demo persona token"
+
+[[generated]]
+id = "HZySV3pcnQLvNf2eM_xul"
+uri = "file://artifacts/malamh/public/demo/persona-open.png"
+type = "image"
+title = "demo persona open"

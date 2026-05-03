@@ -14,6 +14,7 @@ import publicApiRouter from "./public-api";
 import webhooksRouter from "./webhooks";
 import livenessRouter from "./liveness";
 import shareRouter from "./share";
+import demoRouter from "./demo";
 
 const router: IRouter = Router();
 
@@ -31,6 +32,7 @@ router.use(monitorRouter);
 router.use(publicApiRouter);
 router.use(webhooksRouter);
 router.use(shareRouter);
+router.use(demoRouter);
 
 // JSON 404 for any unknown /api/* route (replaces Express default HTML page).
 router.use((req: Request, res: Response) => {

@@ -4,8 +4,9 @@ import { PublicLayout, MalamhMark } from "@/components/layout/PublicLayout";
 import { useScrollReveal } from "@/hooks/use-scroll-reveal";
 import {
   ChevronDown, Radar, Bell, FileText, CheckCircle2,
-  ScanLine, ToggleRight, Shield, ArrowRight,
+  ScanLine, ToggleRight, Shield, ArrowRight, XCircle, KeyRound, Loader2, Sparkles,
 } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 
 /* ============================================================
    Reusable building blocks
@@ -80,17 +81,307 @@ function SectionHero() {
         >
           Anyone can take your photo from social media, feed it to any AI tool, and generate a fake image of you. Doing anything. Wearing anything. And you can't do anything about it.
         </p>
-        <div className="mt-10">
+        <div className="mt-10 flex items-center justify-center gap-3 flex-wrap">
           <Link href="/register" className="btn-mh btn-mh-primary btn-mh-large anim-pulse-glow">
             Take back control
             <ArrowRight className="w-5 h-5" />
           </Link>
+          <a href="#demo" className="btn-mh btn-mh-ghost btn-mh-large">
+            See the live demo
+          </a>
         </div>
       </div>
       <div className="absolute bottom-10 left-1/2 -translate-x-1/2 anim-bounce-soft" style={{ color: "var(--text-muted)" }}>
         <ChevronDown className="w-6 h-6" />
       </div>
     </section>
+  );
+}
+
+/* ============================================================
+   Section 1.5 — Live Demo
+   ============================================================ */
+
+type DemoPersona = {
+  slug: "blocked" | "token" | "open";
+  label: string;
+  hint: string;
+  image: string;
+};
+
+const DEMO_PERSONAS: DemoPersona[] = [
+  { slug: "blocked", label: "Aisha Karimi",   hint: "Set to BLOCKED",        image: `${import.meta.env.BASE_URL}demo/persona-blocked.png` },
+  { slug: "token",   label: "Marcus Chen",    hint: "TOKEN_REQUIRED",        image: `${import.meta.env.BASE_URL}demo/persona-token.png` },
+  { slug: "open",    label: "Theo Vasquez",   hint: "OPEN consent",          image: `${import.meta.env.BASE_URL}demo/persona-open.png` },
+];
+
+type DemoResult = {
+  status: "blocked" | "token_required" | "open";
+  matchScore: number;
+  consentLevel: string;
+  persona: { name: string; role: string; note: string };
+  authUrl: string | null;
+};
+
+type DemoPhase = "idle" | "uploading" | "matching" | "checking" | "done" | "error";
+
+function isDemoResult(x: unknown): x is DemoResult {
+  if (!x || typeof x !== "object") return false;
+  const o = x as Record<string, unknown>;
+  return (
+    (o.status === "blocked" || o.status === "token_required" || o.status === "open") &&
+    typeof o.matchScore === "number" &&
+    typeof o.consentLevel === "string" &&
+    !!o.persona && typeof (o.persona as { name?: unknown }).name === "string"
+  );
+}
+
+function DemoPersonaCard({
+  persona, active, disabled, onPick,
+}: { persona: DemoPersona; active: boolean; disabled: boolean; onPick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      disabled={disabled}
+      role="radio"
+      aria-checked={active}
+      aria-label={`${persona.label}, ${persona.hint}`}
+      className="glass-card glass-card-hover p-3 text-left flex flex-col items-center transition-all focus:outline-none focus-visible:ring-2"
+      style={{
+        opacity: disabled && !active ? 0.4 : 1,
+        borderColor: active ? "var(--accent-blue)" : undefined,
+        boxShadow: active ? "0 0 40px var(--accent-blue-glow)" : undefined,
+        cursor: disabled ? "not-allowed" : "pointer",
+      }}
+    >
+      <div
+        className="w-full aspect-square rounded-xl overflow-hidden mb-3"
+        style={{ background: "var(--bg-secondary)" }}
+      >
+        <img src={persona.image} alt="" className="w-full h-full object-cover" />
+      </div>
+      <div className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>{persona.label}</div>
+      <div className="text-[11px] mt-0.5" style={{ color: "var(--text-muted)" }}>{persona.hint}</div>
+    </button>
+  );
+}
+
+function DemoStatusIcon({ status }: { status: DemoResult["status"] }) {
+  if (status === "blocked") return <XCircle className="w-7 h-7" style={{ color: "var(--accent-red)" }} />;
+  if (status === "open") return <CheckCircle2 className="w-7 h-7" style={{ color: "#22c55e" }} />;
+  return <KeyRound className="w-7 h-7" style={{ color: "var(--accent-blue)" }} />;
+}
+
+function SectionLiveDemo() {
+  const [picked, setPicked] = useState<DemoPersona | null>(null);
+  const [phase, setPhase] = useState<DemoPhase>("idle");
+  const [result, setResult] = useState<DemoResult | null>(null);
+
+  const run = async (persona: DemoPersona) => {
+    setPicked(persona);
+    setResult(null);
+    setPhase("uploading");
+    await new Promise((r) => setTimeout(r, 600));
+    setPhase("matching");
+    try {
+      const [resp] = await Promise.all([
+        apiFetch("/v1/demo/check", {
+          method: "POST",
+          body: JSON.stringify({ persona: persona.slug }),
+        }),
+        new Promise((r) => setTimeout(r, 900)),
+      ]);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data: unknown = await resp.json();
+      if (!isDemoResult(data)) throw new Error("Malformed response");
+      setPhase("checking");
+      await new Promise((r) => setTimeout(r, 500));
+      setResult(data);
+      setPhase("done");
+    } catch {
+      setPhase("error");
+    }
+  };
+
+  const reset = () => { setPicked(null); setResult(null); setPhase("idle"); };
+
+  const statusColor =
+    result?.status === "blocked" ? "var(--accent-red)" :
+    result?.status === "open" ? "#22c55e" :
+    "var(--accent-blue)";
+  const statusLabel =
+    result?.status === "blocked" ? "REQUEST BLOCKED" :
+    result?.status === "open" ? "OPEN CONSENT" :
+    "TOKEN REQUIRED";
+
+  return (
+    <section id="demo" className="py-32 px-6 relative">
+      <div className="max-w-6xl mx-auto relative">
+        <div className="mesh-blob" style={{ width: 600, height: 600, background: "rgba(77,124,255,0.10)", top: "10%", left: "50%", marginLeft: -300, animation: "mh-orbit-1 26s ease-in-out infinite" }} />
+
+        <Reveal>
+          <div className="text-center mb-4 relative">
+            <div className="section-label mb-3 inline-flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5" /> Live demo
+            </div>
+            <h2 className="headline-section text-3xl md:text-5xl mb-4">See the consent gate fire.</h2>
+            <p className="max-w-2xl mx-auto text-base md:text-lg" style={{ color: "var(--text-secondary)" }}>
+              Pretend you're an AI image generator. Pick a person below and try to generate an image of them.
+              Watch what happens.
+            </p>
+          </div>
+        </Reveal>
+
+        <div className="grid lg:grid-cols-[280px,1fr] gap-8 mt-14 relative">
+          {/* Persona picker */}
+          <div className="flex flex-col gap-4">
+            <div className="section-label">Pick a target</div>
+            <div className="grid grid-cols-3 lg:grid-cols-1 gap-3" role="radiogroup" aria-label="Choose a demo persona">
+              {DEMO_PERSONAS.map((p) => (
+                <DemoPersonaCard
+                  key={p.slug}
+                  persona={p}
+                  active={picked?.slug === p.slug}
+                  disabled={phase !== "idle" && phase !== "done"}
+                  onPick={() => run(p)}
+                />
+              ))}
+            </div>
+            <p className="text-xs leading-relaxed" style={{ color: "var(--text-muted)" }}>
+              All three faces are AI-generated and the personas are fictional. The response is a
+              scripted preview of how the real consent gate behaves — try it for real with{" "}
+              <Link href="/playground" className="underline">your own face in the Playground</Link>.
+            </p>
+          </div>
+
+          {/* Result terminal */}
+          <div
+            className="glass-card p-7 md:p-9 min-h-[440px] flex flex-col"
+            style={{ borderColor: result ? statusColor : undefined, transition: "border-color .4s" }}
+          >
+            {/* Header bar */}
+            <div className="flex items-center justify-between mb-6 pb-4" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: "var(--accent-red)" }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: "var(--accent-blue)" }} />
+                <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#22c55e" }} />
+                <span className="ml-3 text-xs font-mono" style={{ color: "var(--text-muted)" }}>
+                  POST /api/v1/demo/check
+                </span>
+                <span
+                  className="ml-2 text-[10px] tracking-widest font-semibold px-2 py-0.5 rounded"
+                  style={{ background: "var(--bg-secondary)", color: "var(--text-muted)" }}
+                >
+                  SIMULATED
+                </span>
+              </div>
+              <span className="text-[10px] tracking-widest font-semibold" style={{ color: "var(--text-muted)" }}>
+                LIVE
+              </span>
+            </div>
+
+            {phase === "idle" && !result && (
+              <div className="flex-1 flex flex-col items-center justify-center text-center">
+                <Shield className="w-14 h-14 mb-4" style={{ color: "var(--text-muted)" }} />
+                <p className="text-lg" style={{ color: "var(--text-secondary)" }}>Pick a person on the left.</p>
+                <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>The consent check runs against the real API.</p>
+              </div>
+            )}
+
+            {phase === "error" && (
+              <div className="flex-1 flex flex-col items-center justify-center text-center gap-3" role="alert">
+                <XCircle className="w-12 h-12" style={{ color: "var(--accent-red)" }} />
+                <p style={{ color: "var(--text-primary)" }}>Demo request failed.</p>
+                <button onClick={reset} className="btn-mh btn-mh-ghost">Try again</button>
+              </div>
+            )}
+
+            {phase !== "idle" && phase !== "error" && picked && (
+              <div className="flex-1 flex flex-col gap-5" aria-live="polite">
+                {/* Subject card */}
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0" style={{ background: "var(--bg-secondary)" }}>
+                    <img src={picked.image} alt={picked.label} className="w-full h-full object-cover" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[11px] tracking-widest font-semibold" style={{ color: "var(--text-muted)" }}>SUBJECT</div>
+                    <div className="text-base font-semibold truncate" style={{ color: "var(--text-primary)" }}>{picked.label}</div>
+                    <div className="text-xs font-mono truncate" style={{ color: "var(--text-muted)" }}>request_id: req_{picked.slug}_8a3f9c</div>
+                  </div>
+                </div>
+
+                {/* Stage timeline */}
+                <div className="flex flex-col gap-2.5 font-mono text-sm">
+                  <DemoStage label="Uploading image…"      done={phase !== "uploading"}   active={phase === "uploading"} />
+                  <DemoStage label="Embedding face…"        done={phase === "checking" || phase === "done"} active={phase === "matching"} />
+                  <DemoStage label="Querying consent registry…" done={phase === "done"} active={phase === "checking"} />
+                </div>
+
+                {result && (
+                  <div className="mt-2 flex flex-col gap-4">
+                    {/* Verdict */}
+                    <div
+                      className="flex items-center gap-4 p-4 rounded-xl"
+                      style={{
+                        background: `${statusColor}11`,
+                        border: `1px solid ${statusColor}55`,
+                      }}
+                    >
+                      <DemoStatusIcon status={result.status} />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[11px] tracking-widest font-semibold" style={{ color: statusColor }}>
+                          {statusLabel}
+                        </div>
+                        <div className="text-sm leading-snug mt-0.5" style={{ color: "var(--text-primary)" }}>
+                          {result.persona.note}
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <div className="text-[10px] tracking-widest font-semibold" style={{ color: "var(--text-muted)" }}>MATCH</div>
+                        <div className="text-2xl font-mono" style={{ color: statusColor }}>{result.matchScore.toFixed(1)}%</div>
+                      </div>
+                    </div>
+
+                    {result.authUrl && (
+                      <div className="text-xs font-mono p-3 rounded-lg" style={{ background: "var(--bg-secondary)", color: "var(--text-secondary)" }}>
+                        <div className="text-[10px] tracking-widest mb-1" style={{ color: "var(--text-muted)" }}>AUTH_URL</div>
+                        <div className="break-all" style={{ color: "var(--accent-blue)" }}>{result.authUrl}</div>
+                      </div>
+                    )}
+
+                    <div className="flex gap-3 flex-wrap pt-1">
+                      <button onClick={reset} className="btn-mh btn-mh-ghost">Try another</button>
+                      <Link href="/register" className="btn-mh btn-mh-primary">
+                        Register your own face <ArrowRight className="w-4 h-4" />
+                      </Link>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function DemoStage({ label, done, active }: { label: string; done: boolean; active: boolean }) {
+  return (
+    <div
+      className="flex items-center gap-3 transition-opacity"
+      style={{ opacity: done || active ? 1 : 0.35 }}
+    >
+      {active ? (
+        <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--accent-blue)" }} />
+      ) : done ? (
+        <CheckCircle2 className="w-4 h-4" style={{ color: "#22c55e" }} />
+      ) : (
+        <span className="w-4 h-4 rounded-full" style={{ border: "1.5px solid var(--text-muted)" }} />
+      )}
+      <span style={{ color: done || active ? "var(--text-primary)" : "var(--text-muted)" }}>{label}</span>
+    </div>
   );
 }
 
@@ -706,6 +997,7 @@ export default function Landing() {
   return (
     <PublicLayout transparentHeader>
       <SectionHero />
+      <SectionLiveDemo />
       <SectionNumbers />
       <SectionFailedSolutions />
       <SectionPivot />
