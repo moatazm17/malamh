@@ -246,6 +246,7 @@ function SectionLiveDemo() {
   const [step, setStep] = useState<DemoStep>("idle");
   const [result, setResult] = useState<DemoResult | null>(null);
   const runId = useRef(0);
+  const stageRef = useRef<HTMLDivElement | null>(null);
 
   const reset = () => {
     runId.current += 1;
@@ -261,6 +262,11 @@ function SectionLiveDemo() {
 
     setPicked(persona);
     setResult(null);
+
+    // Bring the stage into view so the user actually watches the show.
+    requestAnimationFrame(() => {
+      stageRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
 
     // Act 1 — Register
     setStep("reg-scan"); await sleep(1700); if (!alive()) return;
@@ -346,7 +352,8 @@ function SectionLiveDemo() {
 
           {/* Cinematic stage */}
           <div
-            className="glass-card p-6 md:p-8 min-h-[520px] flex flex-col relative overflow-hidden"
+            ref={stageRef}
+            className="glass-card p-6 md:p-8 min-h-[520px] flex flex-col relative overflow-hidden scroll-mt-24"
             style={{ borderColor: result ? verdictColor : undefined, transition: "border-color .4s" }}
           >
             {step === "idle" && (
