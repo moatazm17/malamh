@@ -6,7 +6,7 @@ Anyone with a single photo of you can have an AI generate a fake video in under 
 
 You register your face → set your rules → every compliant AI tool must check Malamh before generating your likeness. Said no? No image gets made.
 
-> Built in 24 hours for the [Replit 10-Year Buildathon](https://replit.com) — 48 commits, one shipped product.
+> Built in 24 hours for the [Replit 10-Year Buildathon](https://replit.com) — 53 commits, one shipped product.
 
 ---
 
@@ -43,7 +43,7 @@ lib/
 
 ## Built with Replit Agent
 
-This project was built end-to-end with [Replit Agent](https://replit.com/agent). 48 commits in under 24 hours, from empty repo to deployed product:
+This project was built end-to-end with [Replit Agent](https://replit.com/agent). 53 commits in under 24 hours, from empty repo to deployed product:
 
 - Schema design, migrations, and the entire OpenAPI contract
 - All API routes (`/auth`, `/faces`, `/consent`, `/check-face`, `/billing`, `/webhooks`)
