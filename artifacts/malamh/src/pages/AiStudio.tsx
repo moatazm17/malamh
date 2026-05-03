@@ -15,17 +15,9 @@ const PROMPT_CHIPS = [
   "Create a fantasy character portrait",
 ];
 
-function pollinationsUrl(prompt: string, seed: number): string {
-  const params = new URLSearchParams({
-    width: "1024",
-    height: "1024",
-    model: "flux",
-    nologo: "true",
-    enhance: "true",
-    seed: String(seed),
-  });
-  return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${params.toString()}`;
-}
+// Image generation goes through our /internal/replicate-generate proxy which
+// calls black-forest-labs/flux-schnell on Replicate. The backend keeps the
+// REPLICATE_API_TOKEN secret and returns a hosted image URL.
 
 async function compressTo1024(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -207,14 +199,35 @@ export default function AiStudio() {
     }
   };
 
-  const startImageGeneration = (effectivePrompt: string, newSeed?: number) => {
+  const startImageGeneration = async (effectivePrompt: string, newSeed?: number) => {
     const seed = newSeed ?? Math.floor(Math.random() * 1_000_000);
     genIdRef.current += 1;
+    const myId = genIdRef.current;
     setGenerationSeed(seed);
     setGenerationPrompt(effectivePrompt);
     setGenerationError(null);
-    setGeneratedUrl(pollinationsUrl(effectivePrompt, seed));
+    setGeneratedUrl(null);
     setStatus("generating");
+
+    try {
+      const res = await apiFetch("/internal/replicate-generate", {
+        method: "POST",
+        body: JSON.stringify({ prompt: effectivePrompt, seed }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (myId !== genIdRef.current) return; // stale — user started a new run
+      if (!res.ok || !data.imageUrl) {
+        setGenerationError(data?.message || "The image generator didn't respond. Try again.");
+        setStatus("done");
+        return;
+      }
+      setGeneratedUrl(data.imageUrl);
+      // <img onLoad> will flip status to "done" once the file is decoded.
+    } catch (err: any) {
+      if (myId !== genIdRef.current) return;
+      setGenerationError(err?.message ?? "Network error. Try again.");
+      setStatus("done");
+    }
   };
 
   const handleImageLoaded = (id: number) => {
